@@ -1,0 +1,297 @@
+"use client"
+
+import { useMemo, useState } from "react"
+import { useAuth } from "@/lib/auth-context"
+import { useUserStore } from "@/lib/stores/user-store"
+import type { User } from "@/lib/mock-data"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Search, Plus, GraduationCap, Mail, Phone, MapPin, Trash2 } from "lucide-react"
+
+function generateAvatar(name: string) {
+  const parts = name.trim().split(" ")
+  if (parts.length === 1) return name.slice(0, 2).toUpperCase()
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+}
+
+function generateId() {
+  return `u${Date.now().toString(36).slice(-4)}${Math.random().toString(36).slice(2, 5)}`
+}
+
+const niveaux = ["Bac", "Bac+1", "Bac+2", "Bac+3", "Bac+4", "Bac+5", "Doctorat"]
+
+export default function AdminProfesseursPage() {
+  const { user: currentUser } = useAuth()
+  const users = useUserStore((state) => state.users)
+  const addUser = useUserStore((state) => state.addUser)
+  const deleteUser = useUserStore((state) => state.deleteUser)
+  const [search, setSearch] = useState("")
+  const [open, setOpen] = useState(false)
+
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    ville: "",
+    niveau: "",
+    password: "",
+  })
+
+  const professors = useMemo(
+    () => users.filter((u) => u.role === "professeur"),
+    [users]
+  )
+
+  const filtered = useMemo(() => {
+    const term = search.toLowerCase()
+    return professors.filter(
+      (p) =>
+        p.name.toLowerCase().includes(term) ||
+        p.email.toLowerCase().includes(term) ||
+        (p.ville ?? "").toLowerCase().includes(term)
+    )
+  }, [professors, search])
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!form.name || !form.email || !form.password) return
+
+    const newProfessor: User = {
+      id: generateId(),
+      name: form.name.trim(),
+      email: form.email.trim(),
+      password: form.password,
+      role: "professeur",
+      avatar: generateAvatar(form.name),
+      phone: form.phone.trim() || undefined,
+      ville: form.ville.trim() || undefined,
+      niveau: form.niveau.trim() || undefined,
+    }
+
+    addUser(newProfessor, currentUser ?? undefined)
+    setForm({ name: "", email: "", phone: "", ville: "", niveau: "", password: "" })
+    setOpen(false)
+  }
+
+  const handleDelete = (id: string) => {
+    if (confirm("Êtes-vous sûr de vouloir supprimer ce professeur ?")) {
+      deleteUser(id, currentUser ?? undefined)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Professeurs</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {professors.length} professeur{professors.length > 1 ? "s" : ""} enregistré
+            {professors.length > 1 ? "s" : ""}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="relative w-64">
+            <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+            <Input
+              placeholder="Rechercher..."
+              className="pl-8"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger>
+              <Button>
+                <Plus className="size-4 mr-1.5" />
+                Ajouter
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Ajouter un professeur</DialogTitle>
+                <DialogDescription>
+                  Créez un compte professeur. Il pourra ensuite publier des cours.
+                </DialogDescription>
+              </DialogHeader>
+              <form id="add-professor-form" onSubmit={handleSubmit} className="grid gap-4 py-2">
+                <div className="grid gap-2">
+                  <Label htmlFor="name">Nom complet</Label>
+                  <Input
+                    id="name"
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    placeholder="Ex : Amadou Diallo"
+                    required
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    placeholder="prof@stageia.com"
+                    required
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="password">Mot de passe</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={form.password}
+                    onChange={(e) => setForm({ ...form, password: e.target.value })}
+                    placeholder="••••••••"
+                    minLength={6}
+                    required
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="phone">Téléphone</Label>
+                    <Input
+                      id="phone"
+                      value={form.phone}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      placeholder="+221 ..."
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="ville">Ville</Label>
+                    <Input
+                      id="ville"
+                      value={form.ville}
+                      onChange={(e) => setForm({ ...form, ville: e.target.value })}
+                      placeholder="Dakar"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="niveau">Niveau d'études / Diplôme</Label>
+                  <Input
+                    id="niveau"
+                    value={form.niveau}
+                    onChange={(e) => setForm({ ...form, niveau: e.target.value })}
+                    placeholder="Ex : Bac+5"
+                    list="niveaux-list"
+                  />
+                  <datalist id="niveaux-list">
+                    {niveaux.map((n) => (
+                      <option key={n} value={n} />
+                    ))}
+                  </datalist>
+                </div>
+              </form>
+              <DialogFooter>
+                <Button variant="outline" type="button" onClick={() => setOpen(false)}>
+                  Annuler
+                </Button>
+                <Button type="submit" form="add-professor-form">
+                  Enregistrer
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      <Card>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/30">
+                  <th className="text-left font-medium text-muted-foreground px-4 py-3">Professeur</th>
+                  <th className="text-left font-medium text-muted-foreground px-4 py-3">Contact</th>
+                  <th className="text-left font-medium text-muted-foreground px-4 py-3">Localisation</th>
+                  <th className="text-left font-medium text-muted-foreground px-4 py-3">Diplôme</th>
+                  <th className="text-right font-medium text-muted-foreground px-4 py-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((p, i) => (
+                  <tr
+                    key={p.id}
+                    className={`border-b last:border-0 hover:bg-muted/20 transition-colors ${
+                      i % 2 === 0 ? "" : "bg-muted/10"
+                    }`}
+                  >
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <Avatar className="size-8">
+                          <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                            {p.avatar}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-medium text-foreground">{p.name}</p>
+                          <p className="text-xs text-muted-foreground">{p.email}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col gap-0.5 text-muted-foreground">
+                        <span className="flex items-center gap-1.5">
+                          <Mail className="size-3.5" />
+                          {p.email}
+                        </span>
+                        {p.phone && (
+                          <span className="flex items-center gap-1.5">
+                            <Phone className="size-3.5" />
+                            {p.phone}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <MapPin className="size-3.5" />
+                        {p.ville || "—"}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge variant="outline" className="text-xs gap-1">
+                        <GraduationCap className="size-3" />
+                        {p.niveau || "—"}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => handleDelete(p.id)}
+                        aria-label="Supprimer"
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {filtered.length === 0 && (
+              <div className="text-center py-12 text-muted-foreground">
+                Aucun professeur trouvé
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}

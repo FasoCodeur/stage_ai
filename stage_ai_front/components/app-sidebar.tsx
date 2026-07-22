@@ -29,9 +29,11 @@ import {
   LogOut,
   ChevronDown,
   ShieldCheck,
+  Library,
   FileCheck,
   BarChart3,
   PlusCircle,
+  UserCog,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -132,6 +134,7 @@ export function AppLayout({ navItems, groupLabel, children }: AppSidebarProps) {
 export const ADMIN_NAV: NavItem[] = [
   { label: "Tableau de bord", href: "/admin", icon: LayoutDashboard },
   { label: "Etudiants", href: "/admin/etudiants", icon: GraduationCap },
+  { label: "Professeurs", href: "/admin/professeurs", icon: UserCog },
   { label: "Cours", href: "/admin/cours", icon: BookOpen },
   { label: "Stages virtuels", href: "/admin/stages", icon: Briefcase },
   { label: "Dossiers à valider", href: "/admin/dossiers", icon: FileCheck },
@@ -147,6 +150,7 @@ export const PROF_NAV: NavItem[] = [
 
 export const ETUDIANT_NAV: NavItem[] = [
   { label: "Tableau de bord", href: "/etudiant", icon: LayoutDashboard },
+  { label: "Formations", href: "/etudiant/formations", icon: Library },
   { label: "Mes formations", href: "/etudiant/cours", icon: BookOpen },
   { label: "Stage virtuel", href: "/etudiant/stage", icon: Briefcase },
 ]
