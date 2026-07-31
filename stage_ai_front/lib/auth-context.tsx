@@ -33,6 +33,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       (u) => u.email === email && u.password === password
     )
     if (found) {
+      if (found.suspended) {
+        return { success: false, error: "Votre compte a été suspendu. Veuillez contacter l'administrateur." }
+      }
       setUser(found)
       localStorage.setItem("stageia_user", JSON.stringify(found))
       return { success: true, role: found.role }

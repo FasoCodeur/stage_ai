@@ -1,7 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
 
-@Entity('courses')
-export class CourseEntity {
+@Entity('programs')
+export class ProgramEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -12,28 +12,25 @@ export class CourseEntity {
   description: string;
 
   @Column()
-  category: string;
+  thumbnail: string;
 
   @Column()
-  level: string;
+  duration: number; // en mois
 
   @Column()
-  duration: number;
+  subscriptionPrice: number; // prix abonnement mensuel en FCFA
 
   @Column()
-  price: number;
-
-  @Column()
-  professorId: string;
+  mentorId: string;
 
   @Column({ default: false })
   published: boolean;
 
   @Column()
-  thumbnail: string;
+  startDate: string;
 
-  @Column({ type: 'jsonb', default: '[]' })
-  modules: any[];
+  @Column()
+  endDate: string;
 
   @Column({ type: 'simple-array', default: '' })
   students: string[];

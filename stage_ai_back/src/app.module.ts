@@ -10,6 +10,7 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { PurchasesModule } from './purchases/purchases.module';
 import { StageRequestsModule } from './stage-requests/stage-requests.module';
 import { AuthModule } from './auth/auth.module';
+import { ProgramsModule } from './programs/programs.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { AuthModule } from './auth/auth.module';
     PurchasesModule,
     StageRequestsModule,
     AuthModule,
+    ProgramsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

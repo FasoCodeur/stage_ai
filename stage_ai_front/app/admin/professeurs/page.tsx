@@ -4,7 +4,8 @@ import { useMemo, useState } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { useUserStore } from "@/lib/stores/user-store"
 import type { User } from "@/lib/mock-data"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { COURSES } from "@/lib/mock-data"
+import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
@@ -19,7 +20,28 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Search, Plus, GraduationCap, Mail, Phone, MapPin, Trash2 } from "lucide-react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Search,
+  Plus,
+  GraduationCap,
+  Mail,
+  Phone,
+  MapPin,
+  Trash2,
+  Ban,
+  CheckCircle,
+  ArrowRightLeft,
+  BookOpen,
+  CheckSquare,
+  Square,
+} from "lucide-react"
 
 function generateAvatar(name: string) {
   const parts = name.trim().split(" ")
@@ -38,8 +60,18 @@ export default function AdminProfesseursPage() {
   const users = useUserStore((state) => state.users)
   const addUser = useUserStore((state) => state.addUser)
   const deleteUser = useUserStore((state) => state.deleteUser)
+  const suspendUser = useUserStore((state) => state.suspendUser)
+  const reactivateUser = useUserStore((state) => state.reactivateUser)
+  const transferCourses = useUserStore((state) => state.transferCourses)
   const [search, setSearch] = useState("")
   const [open, setOpen] = useState(false)
+
+  // Transfer modal state
+  const [transferOpen, setTransferOpen] = useState(false)
+  const [fromProfessor, setFromProfessor] = useState<string | null>(null)
+  const [toProfessor, setToProfessor] = useState("")
+  const [selectedCourses, setSelectedCourses] = useState<string[]>([])
+  const [selectAll, setSelectAll] = useState(true)
 
   const [form, setForm] = useState({
     name: "",
@@ -79,6 +111,7 @@ export default function AdminProfesseursPage() {
       phone: form.phone.trim() || undefined,
       ville: form.ville.trim() || undefined,
       niveau: form.niveau.trim() || undefined,
+      suspended: false,
     }
 
     addUser(newProfessor, currentUser ?? undefined)
@@ -92,14 +125,66 @@ export default function AdminProfesseursPage() {
     }
   }
 
+  const handleSuspend = (id: string) => {
+    suspendUser(id, currentUser ?? undefined)
+  }
+
+  const handleReactivate = (id: string) => {
+    reactivateUser(id, currentUser ?? undefined)
+  }
+
+  const openTransfer = (professorId: string) => {
+    setFromProfessor(professorId)
+    const profCourses = COURSES.filter((c) => c.professorId === professorId)
+    setSelectedCourses(profCourses.map((c) => c.id))
+    setSelectAll(true)
+    setToProfessor("")
+    setTransferOpen(true)
+  }
+
+  const handleTransfer = () => {
+    if (!fromProfessor || !toProfessor) return
+    transferCourses(fromProfessor, toProfessor, selectAll ? undefined : selectedCourses, currentUser ?? undefined)
+    setTransferOpen(false)
+    setFromProfessor(null)
+    setToProfessor("")
+    setSelectedCourses([])
+  }
+
+  const toggleCourse = (courseId: string) => {
+    setSelectedCourses((prev) =>
+      prev.includes(courseId) ? prev.filter((id) => id !== courseId) : [...prev, courseId]
+    )
+    setSelectAll(false)
+  }
+
+  const toggleSelectAll = () => {
+    if (!fromProfessor) return
+    const profCourses = COURSES.filter((c) => c.professorId === fromProfessor)
+    if (selectAll) {
+      setSelectedCourses([])
+      setSelectAll(false)
+    } else {
+      setSelectedCourses(profCourses.map((c) => c.id))
+      setSelectAll(true)
+    }
+  }
+
+  const otherProfessors = fromProfessor
+    ? professors.filter((p) => p.id !== fromProfessor)
+    : []
+
+  const fromProfCourses = fromProfessor
+    ? COURSES.filter((c) => c.professorId === fromProfessor)
+    : []
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Professeurs</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {professors.length} professeur{professors.length > 1 ? "s" : ""} enregistré
-            {professors.length > 1 ? "s" : ""}
+            {professors.length} professeur{professors.length > 1 ? "s" : ""} enregistré{professors.length > 1 ? "s" : ""}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -115,7 +200,7 @@ export default function AdminProfesseursPage() {
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger>
               <Button>
-                <Plus className="size-4 mr-1.5" />
+                <Plus className="size-4" />
                 Ajouter
               </Button>
             </DialogTrigger>
@@ -129,80 +214,37 @@ export default function AdminProfesseursPage() {
               <form id="add-professor-form" onSubmit={handleSubmit} className="grid gap-4 py-2">
                 <div className="grid gap-2">
                   <Label htmlFor="name">Nom complet</Label>
-                  <Input
-                    id="name"
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    placeholder="Ex : Amadou Diallo"
-                    required
-                  />
+                  <Input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ex : Amadou Diallo" required />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    placeholder="prof@stageia.com"
-                    required
-                  />
+                  <Input id="email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="prof@stageia.com" required />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="password">Mot de passe</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={form.password}
-                    onChange={(e) => setForm({ ...form, password: e.target.value })}
-                    placeholder="••••••••"
-                    minLength={6}
-                    required
-                  />
+                  <Input id="password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="••••••••" minLength={6} required />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label htmlFor="phone">Téléphone</Label>
-                    <Input
-                      id="phone"
-                      value={form.phone}
-                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                      placeholder="+221 ..."
-                    />
+                    <Input id="phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+221 ..." />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="ville">Ville</Label>
-                    <Input
-                      id="ville"
-                      value={form.ville}
-                      onChange={(e) => setForm({ ...form, ville: e.target.value })}
-                      placeholder="Dakar"
-                    />
+                    <Input id="ville" value={form.ville} onChange={(e) => setForm({ ...form, ville: e.target.value })} placeholder="Dakar" />
                   </div>
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="niveau">Niveau d'études / Diplôme</Label>
-                  <Input
-                    id="niveau"
-                    value={form.niveau}
-                    onChange={(e) => setForm({ ...form, niveau: e.target.value })}
-                    placeholder="Ex : Bac+5"
-                    list="niveaux-list"
-                  />
+                  <Input id="niveau" value={form.niveau} onChange={(e) => setForm({ ...form, niveau: e.target.value })} placeholder="Ex : Bac+5" list="niveaux-list" />
                   <datalist id="niveaux-list">
-                    {niveaux.map((n) => (
-                      <option key={n} value={n} />
-                    ))}
+                    {niveaux.map((n) => (<option key={n} value={n} />))}
                   </datalist>
                 </div>
               </form>
               <DialogFooter>
-                <Button variant="outline" type="button" onClick={() => setOpen(false)}>
-                  Annuler
-                </Button>
-                <Button type="submit" form="add-professor-form">
-                  Enregistrer
-                </Button>
+                <Button variant="outline" type="button" onClick={() => setOpen(false)}>Annuler</Button>
+                <Button type="submit" form="add-professor-form">Enregistrer</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -219,23 +261,17 @@ export default function AdminProfesseursPage() {
                   <th className="text-left font-medium text-muted-foreground px-4 py-3">Contact</th>
                   <th className="text-left font-medium text-muted-foreground px-4 py-3">Localisation</th>
                   <th className="text-left font-medium text-muted-foreground px-4 py-3">Diplôme</th>
+                  <th className="text-left font-medium text-muted-foreground px-4 py-3">Statut</th>
                   <th className="text-right font-medium text-muted-foreground px-4 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((p, i) => (
-                  <tr
-                    key={p.id}
-                    className={`border-b last:border-0 hover:bg-muted/20 transition-colors ${
-                      i % 2 === 0 ? "" : "bg-muted/10"
-                    }`}
-                  >
+                  <tr key={p.id} className={`border-b last:border-0 hover:bg-muted/20 transition-colors ${i % 2 === 0 ? "" : "bg-muted/10"}`}>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
                         <Avatar className="size-8">
-                          <AvatarFallback className="text-xs bg-primary/10 text-primary">
-                            {p.avatar}
-                          </AvatarFallback>
+                          <AvatarFallback className="text-xs bg-primary/10 text-primary">{p.avatar}</AvatarFallback>
                         </Avatar>
                         <div>
                           <p className="font-medium text-foreground">{p.name}</p>
@@ -245,16 +281,8 @@ export default function AdminProfesseursPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-0.5 text-muted-foreground">
-                        <span className="flex items-center gap-1.5">
-                          <Mail className="size-3.5" />
-                          {p.email}
-                        </span>
-                        {p.phone && (
-                          <span className="flex items-center gap-1.5">
-                            <Phone className="size-3.5" />
-                            {p.phone}
-                          </span>
-                        )}
+                        <span className="flex items-center gap-1.5"><Mail className="size-3.5" />{p.email}</span>
+                        {p.phone && <span className="flex items-center gap-1.5"><Phone className="size-3.5" />{p.phone}</span>}
                       </div>
                     </td>
                     <td className="px-4 py-3">
@@ -269,29 +297,116 @@ export default function AdminProfesseursPage() {
                         {p.niveau || "—"}
                       </Badge>
                     </td>
-                    <td className="px-4 py-3 text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => handleDelete(p.id)}
-                        aria-label="Supprimer"
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
+                    <td className="px-4 py-3">
+                      {p.suspended ? (
+                        <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-200 gap-1">
+                          <Ban className="size-3" /> Suspendu
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200 gap-1">
+                          <CheckCircle className="size-3" /> Actif
+                        </Badge>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        {p.suspended ? (
+                          <Button variant="ghost" size="icon-sm" className="text-green-600 hover:text-green-700 hover:bg-green-50" onClick={() => handleReactivate(p.id)} title="Réactiver">
+                            <CheckCircle className="size-4" />
+                          </Button>
+                        ) : (
+                          <Button variant="ghost" size="icon-sm" className="text-amber-600 hover:text-amber-700 hover:bg-amber-50" onClick={() => handleSuspend(p.id)} title="Suspendre">
+                            <Ban className="size-4" />
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="icon-sm" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => openTransfer(p.id)} title="Transférer les cours">
+                          <ArrowRightLeft className="size-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon-sm" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleDelete(p.id)} title="Supprimer">
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
             {filtered.length === 0 && (
-              <div className="text-center py-12 text-muted-foreground">
-                Aucun professeur trouvé
-              </div>
+              <div className="text-center py-12 text-muted-foreground">Aucun professeur trouvé</div>
             )}
           </div>
         </CardContent>
       </Card>
+
+      {/* Transfer Modal */}
+      <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Transférer les cours</DialogTitle>
+            <DialogDescription>
+              {fromProfessor && (
+                <>Transférer les cours de <strong>{professors.find((p) => p.id === fromProfessor)?.name}</strong> vers un autre professeur.</>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 py-2">
+            {/* Sélection des cours */}
+            <div>
+              <Label className="mb-1.5 block">Cours à transférer</Label>
+              {fromProfCourses.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Ce professeur n'a aucun cours.</p>
+              ) : (
+                <div className="flex flex-col gap-1 max-h-40 overflow-y-auto border rounded-md p-2">
+                  <div className="flex items-center gap-2 pb-1 border-b mb-1">
+                    <button onClick={toggleSelectAll} className="text-xs text-primary hover:underline flex items-center gap-1">
+                      {selectAll ? <CheckSquare className="size-3.5" /> : <Square className="size-3.5" />}
+                      {selectAll ? "Tout désélectionner" : "Tout sélectionner"}
+                    </button>
+                    <span className="text-xs text-muted-foreground">({selectedCourses.length}/{fromProfCourses.length})</span>
+                  </div>
+                  {fromProfCourses.map((course) => (
+                    <div key={course.id} className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id={`course-${course.id}`}
+                        checked={selectedCourses.includes(course.id)}
+                        onChange={() => toggleCourse(course.id)}
+                        className="size-3.5"
+                      />
+                      <label htmlFor={`course-${course.id}`} className="text-xs text-foreground flex-1 truncate cursor-pointer">
+                        {course.title}
+                      </label>
+                      <Badge variant="outline" className="text-[10px]">{course.published ? "Publié" : "Brouillon"}</Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Sélection du destinataire */}
+            <div>
+              <Label htmlFor="toProfessor">Professeur destinataire</Label>
+              <Select value={toProfessor} onValueChange={(value) => setToProfessor(value ?? "")}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Choisir un professeur..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {otherProfessors.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.name} {p.suspended ? "(Suspendu)" : ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTransferOpen(false)}>Annuler</Button>
+            <Button onClick={handleTransfer} disabled={!toProfessor || selectedCourses.length === 0}>
+              <ArrowRightLeft className="size-3.5 mr-1" />
+              Transférer ({selectedCourses.length} cours)
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

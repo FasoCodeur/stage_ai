@@ -344,7 +344,7 @@ export default function FormationsPage() {
           )}
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
-          <Select value={category} onValueChange={setCategory}>
+          <Select value={category} onValueChange={(value) => setCategory(value ?? ALL)}>
             <SelectTrigger className="w-full sm:w-44 h-9">
               <SlidersHorizontal className="size-3.5 text-muted-foreground" />
               <SelectValue placeholder="Catégorie" />
@@ -359,7 +359,7 @@ export default function FormationsPage() {
             </SelectContent>
           </Select>
 
-          <Select value={level} onValueChange={setLevel}>
+          <Select value={level} onValueChange={(value) => setLevel(value ?? ALL)}>
             <SelectTrigger className="w-full sm:w-40 h-9">
               <BookOpen className="size-3.5 text-muted-foreground" />
               <SelectValue placeholder="Niveau" />

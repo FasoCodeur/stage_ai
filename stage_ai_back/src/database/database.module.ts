@@ -6,6 +6,10 @@ import { EnrollmentEntity } from './entities/enrollment.entity';
 import { SubscriptionEntity } from './entities/subscription.entity';
 import { PurchaseEntity } from './entities/purchase.entity';
 import { StageRequestEntity } from './entities/stage-request.entity';
+import { ProgramEntity } from './entities/program.entity';
+import { ProgramEnrollmentEntity } from './entities/program-enrollment.entity';
+import { LevelEntity } from './entities/level.entity';
+import { SeedService } from './seed.service';
 
 @Module({
   imports: [
@@ -23,6 +27,9 @@ import { StageRequestEntity } from './entities/stage-request.entity';
         SubscriptionEntity,
         PurchaseEntity,
         StageRequestEntity,
+        ProgramEntity,
+        ProgramEnrollmentEntity,
+        LevelEntity,
       ],
       synchronize: true, // only for dev
     }),
@@ -33,8 +40,12 @@ import { StageRequestEntity } from './entities/stage-request.entity';
       SubscriptionEntity,
       PurchaseEntity,
       StageRequestEntity,
+      ProgramEntity,
+      ProgramEnrollmentEntity,
+      LevelEntity,
     ]),
   ],
+  providers: [SeedService],
   exports: [TypeOrmModule],
 })
 export class DatabaseModule {}

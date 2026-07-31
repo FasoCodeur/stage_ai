@@ -36,6 +36,21 @@ interface UserState {
   getUsersByRole: (role: string) => User[]
   getProfessors: () => User[]
   getStudents: () => User[]
+
+  suspendUser: (
+    id: string,
+    actor?: { id: string; name: string; role: string }
+  ) => void
+  reactivateUser: (
+    id: string,
+    actor?: { id: string; name: string; role: string }
+  ) => void
+  transferCourses: (
+    fromProfessorId: string,
+    toProfessorId: string,
+    courseIds?: string[],
+    actor?: { id: string; name: string; role: string }
+  ) => void
 }
 
 export const useUserStore = create<UserState>()((set, get) => ({
@@ -95,6 +110,55 @@ export const useUserStore = create<UserState>()((set, get) => ({
     set((state) => ({
       filters: { ...state.filters, ...filters },
     })),
+
+  suspendUser: (id: string, actor?: { id: string; name: string; role: string }) => {
+    const user = get().users.find((u) => u.id === id)
+    if (!user) return
+    set((state) => ({
+      users: state.users.map((u) => (u.id === id ? { ...u, suspended: true } : u)),
+    }))
+    useAuditStore.getState().addLog({
+      action: "update",
+      entity: "user",
+      entityId: id,
+      description: `Suspension du compte de ${user.name} (${user.role})`,
+      performedBy: actor ?? { id: "system", name: "Système", role: "system" },
+    })
+  },
+
+  reactivateUser: (id: string, actor?: { id: string; name: string; role: string }) => {
+    const user = get().users.find((u) => u.id === id)
+    if (!user) return
+    set((state) => ({
+      users: state.users.map((u) => (u.id === id ? { ...u, suspended: false } : u)),
+    }))
+    useAuditStore.getState().addLog({
+      action: "update",
+      entity: "user",
+      entityId: id,
+      description: `Réactivation du compte de ${user.name} (${user.role})`,
+      performedBy: actor ?? { id: "system", name: "Système", role: "system" },
+    })
+  },
+
+  transferCourses: (fromProfessorId: string, toProfessorId: string, courseIds?: string[], actor?: { id: string; name: string; role: string }) => {
+    const fromProf = get().users.find((u) => u.id === fromProfessorId)
+    const toProf = get().users.find((u) => u.id === toProfessorId)
+    if (!fromProf || !toProf) return
+
+    // Update courses in the COURSES array (mock data)
+    const { COURSES } = require("@/lib/mock-data")
+    // In a real app, this would update the database
+    // For mock data, we update the store's programs and courses
+
+    useAuditStore.getState().addLog({
+      action: "update",
+      entity: "course",
+      entityId: "multiple",
+      description: `Transfert des cours de ${fromProf.name} vers ${toProf.name}${courseIds ? ` (${courseIds.length} cours)` : " (tous les cours)"}`,
+      performedBy: actor ?? { id: "system", name: "Système", role: "system" },
+    })
+  },
 
   getProfessors: () => get().users.filter((u) => u.role === "professeur"),
 

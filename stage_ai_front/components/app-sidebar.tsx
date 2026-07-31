@@ -34,6 +34,7 @@ import {
   BarChart3,
   PlusCircle,
   UserCog,
+  Layers,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -136,6 +137,7 @@ export const ADMIN_NAV: NavItem[] = [
   { label: "Etudiants", href: "/admin/etudiants", icon: GraduationCap },
   { label: "Professeurs", href: "/admin/professeurs", icon: UserCog },
   { label: "Cours", href: "/admin/cours", icon: BookOpen },
+  { label: "Programmes", href: "/admin/programmes", icon: Layers },
   { label: "Stages virtuels", href: "/admin/stages", icon: Briefcase },
   { label: "Dossiers à valider", href: "/admin/dossiers", icon: FileCheck },
   { label: "Statistiques", href: "/admin/stats", icon: BarChart3 },
@@ -145,6 +147,7 @@ export const PROF_NAV: NavItem[] = [
   { label: "Tableau de bord", href: "/professeur", icon: LayoutDashboard },
   { label: "Mes cours", href: "/professeur/cours", icon: BookOpen },
   { label: "Nouveau cours", href: "/professeur/cours/nouveau", icon: PlusCircle },
+  { label: "Mes programmes", href: "/professeur/programmes", icon: Layers },
   { label: "Mes étudiants", href: "/professeur/etudiants", icon: Users },
 ]
 
@@ -152,5 +155,6 @@ export const ETUDIANT_NAV: NavItem[] = [
   { label: "Tableau de bord", href: "/etudiant", icon: LayoutDashboard },
   { label: "Formations", href: "/etudiant/formations", icon: Library },
   { label: "Mes formations", href: "/etudiant/cours", icon: BookOpen },
+  { label: "Programmes", href: "/etudiant/programmes", icon: Layers },
   { label: "Stage virtuel", href: "/etudiant/stage", icon: Briefcase },
 ]
