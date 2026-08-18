@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import * as bcrypt from 'bcryptjs';
 import { UserEntity } from '../database/entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -26,8 +27,11 @@ export class UsersService {
     return this.userRepo.findOneBy({ email });
   }
 
-  findByCredentials(email: string, password: string): Promise<UserEntity | null> {
-    return this.userRepo.findOneBy({ email, password });
+  async findByCredentials(email: string, password: string): Promise<UserEntity | null> {
+    const user = await this.userRepo.findOneBy({ email });
+    if (!user) return null;
+    const isMatch = await bcrypt.compare(password, user.password);
+    return isMatch ? user : null;
   }
 
   async findByRole(role: string): Promise<UserEntity[]> {
@@ -37,7 +41,8 @@ export class UsersService {
   async create(dto: CreateUserDto): Promise<UserEntity> {
     const exists = await this.userRepo.findOneBy({ email: dto.email });
     if (exists) throw new ConflictException('Cet email est déjà utilisé');
-    const user = this.userRepo.create(dto);
+    const hashedPassword = await bcrypt.hash(dto.password, 10);
+    const user = this.userRepo.create({ ...dto, password: hashedPassword });
     return this.userRepo.save(user);
   }
 

@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { Course, Module, Lesson, QuizQuestion } from "@/lib/mock-data"
+import { useState, useRef, useEffect } from "react"
+import { Course, Module, Lesson, ContentBlock, QuizQuestion, ContentBlockType, SandboxLanguage } from "@/lib/mock-data"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -26,11 +26,21 @@ import {
   BookOpen,
   ChevronDown,
   ChevronUp,
+  ArrowUp,
+  ArrowDown,
+  Check,
+  Bold,
+  Italic,
+  Underline,
+  Heading1,
+  Heading2,
+  List,
+  ListOrdered,
+  Link2,
+  Code,
 } from "lucide-react"
 
-type LessonType = Lesson["type"]
-
-const LESSON_TYPE_CONFIG: Record<LessonType, { label: string; icon: React.ElementType; color: string }> = {
+const BLOCK_TYPE_CONFIG: Record<ContentBlockType, { label: string; icon: React.ElementType; color: string }> = {
   texte: { label: "Texte", icon: FileText, color: "text-primary" },
   video: { label: "Vidéo", icon: Video, color: "text-chart-2" },
   quiz: { label: "Quiz", icon: CheckSquare, color: "text-chart-3" },
@@ -41,10 +51,144 @@ function generateId() {
   return Math.random().toString(36).slice(2, 10)
 }
 
+// Convertit une question de quiz de l'ancien format (correctIndex) vers le nouveau (correctIndexes)
+function normalizeQuizQuestion(q: any): QuizQuestion {
+  if (q.correctIndexes && Array.isArray(q.correctIndexes)) {
+    return q as QuizQuestion
+  }
+  // Ancien format : correctIndex (nombre unique)
+  return {
+    id: q.id,
+    question: q.question,
+    options: q.options || [],
+    correctIndexes: q.correctIndex !== undefined ? [q.correctIndex] : [0],
+  }
+}
+
+// Convertit une leçon de l'ancien format (type unique) vers le nouveau format (blocks)
+function normalizeLesson(lesson: any): Lesson {
+  if (lesson.blocks && Array.isArray(lesson.blocks)) {
+    // Normaliser aussi les quiz dans les blocs existants
+    return {
+      ...lesson,
+      blocks: lesson.blocks.map((b: any) => ({
+        ...b,
+        quiz: b.quiz ? b.quiz.map(normalizeQuizQuestion) : b.quiz,
+      })),
+    } as Lesson
+  }
+  // Ancien format : type unique
+  const block: ContentBlock = {
+    id: generateId(),
+    type: lesson.type || "texte",
+    content: lesson.content || "",
+    videoUrl: lesson.videoUrl,
+    quiz: lesson.quiz ? lesson.quiz.map(normalizeQuizQuestion) : lesson.quiz,
+    sandboxCode: lesson.sandboxCode,
+    language: lesson.language,
+  }
+  return {
+    id: lesson.id,
+    title: lesson.title,
+    duration: lesson.duration || 15,
+    blocks: [block],
+  }
+}
+
+// Normalise un cours complet
+function normalizeCourse(course: Course): Course {
+  return {
+    ...course,
+    modules: (course.modules || []).map((m: any) => ({
+      ...m,
+      lessons: (m.lessons || []).map(normalizeLesson),
+    })),
+  }
+}
+
+// ─── Rich Text Editor ─────────────────────────────────────────────────────────
+function RichTextEditor({ value, onChange, placeholder }: { value: string; onChange: (html: string) => void; placeholder?: string }) {
+  const editorRef = useRef<HTMLDivElement>(null)
+
+  // Mettre à jour le contenu quand la valeur change de l'extérieur
+  useEffect(() => {
+    if (editorRef.current && editorRef.current.innerHTML !== value) {
+      editorRef.current.innerHTML = value
+    }
+  }, [value])
+
+  const execCommand = (command: string, value?: string) => {
+    document.execCommand(command, false, value)
+    if (editorRef.current) {
+      onChange(editorRef.current.innerHTML)
+    }
+  }
+
+  const toolbarButton = "inline-flex items-center justify-center size-7 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+
+  return (
+    <div className="flex flex-col gap-1.5 border rounded-lg overflow-hidden focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20 transition-colors">
+      {/* Toolbar */}
+      <div className="flex items-center gap-0.5 px-2 py-1.5 bg-muted/50 border-b flex-wrap">
+        <button type="button" className={toolbarButton} onClick={() => execCommand("bold")} title="Gras">
+          <Bold className="size-3.5" />
+        </button>
+        <button type="button" className={toolbarButton} onClick={() => execCommand("italic")} title="Italique">
+          <Italic className="size-3.5" />
+        </button>
+        <button type="button" className={toolbarButton} onClick={() => execCommand("underline")} title="Souligné">
+          <Underline className="size-3.5" />
+        </button>
+        <div className="w-px h-4 bg-border mx-1" />
+        <button type="button" className={toolbarButton} onClick={() => execCommand("formatBlock", "h1")} title="Titre 1">
+          <Heading1 className="size-3.5" />
+        </button>
+        <button type="button" className={toolbarButton} onClick={() => execCommand("formatBlock", "h2")} title="Titre 2">
+          <Heading2 className="size-3.5" />
+        </button>
+        <div className="w-px h-4 bg-border mx-1" />
+        <button type="button" className={toolbarButton} onClick={() => execCommand("insertUnorderedList")} title="Liste à puces">
+          <List className="size-3.5" />
+        </button>
+        <button type="button" className={toolbarButton} onClick={() => execCommand("insertOrderedList")} title="Liste numérotée">
+          <ListOrdered className="size-3.5" />
+        </button>
+        <div className="w-px h-4 bg-border mx-1" />
+        <button
+          type="button"
+          className={toolbarButton}
+          onClick={() => {
+            const url = prompt("URL du lien :")
+            if (url) execCommand("createLink", url)
+          }}
+          title="Insérer un lien"
+        >
+          <Link2 className="size-3.5" />
+        </button>
+        <button type="button" className={toolbarButton} onClick={() => execCommand("formatBlock", "pre")} title="Code">
+          <Code className="size-3.5" />
+        </button>
+      </div>
+
+      {/* Editable content */}
+      <div
+        ref={editorRef}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={(e) => onChange((e.target as HTMLDivElement).innerHTML)}
+        onBlur={(e) => onChange((e.target as HTMLDivElement).innerHTML)}
+        className="min-h-32 px-3 py-2.5 text-sm text-foreground outline-none prose prose-sm max-w-none"
+        data-placeholder={placeholder}
+        style={{ whiteSpace: "pre-wrap" }}
+      />
+    </div>
+  )
+}
+
 // ─── Quiz Editor ───────────────────────────────────────────────────────────────
 function QuizEditor({ quiz, onChange }: { quiz: QuizQuestion[]; onChange: (q: QuizQuestion[]) => void }) {
   const addQuestion = () => {
-    onChange([...quiz, { id: generateId(), question: "", options: ["", "", "", ""], correctIndex: 0 }])
+    onChange([...quiz, { id: generateId(), question: "", options: ["", "", "", ""], correctIndexes: [0] }])
   }
   const updateQuestion = (idx: number, field: keyof QuizQuestion, value: unknown) => {
     const updated = quiz.map((q, i) => (i === idx ? { ...q, [field]: value } : q))
@@ -56,6 +200,16 @@ function QuizEditor({ quiz, onChange }: { quiz: QuizQuestion[]; onChange: (q: Qu
       const options = [...q.options]
       options[oIdx] = value
       return { ...q, options }
+    })
+    onChange(updated)
+  }
+  const toggleCorrect = (qIdx: number, oIdx: number) => {
+    const updated = quiz.map((q, i) => {
+      if (i !== qIdx) return q
+      const correctIndexes = q.correctIndexes.includes(oIdx)
+        ? q.correctIndexes.filter((idx) => idx !== oIdx)
+        : [...q.correctIndexes, oIdx]
+      return { ...q, correctIndexes }
     })
     onChange(updated)
   }
@@ -93,48 +247,250 @@ function QuizEditor({ quiz, onChange }: { quiz: QuizQuestion[]; onChange: (q: Qu
                 </Button>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                {q.options.map((opt, oIdx) => (
-                  <div key={oIdx} className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => updateQuestion(qIdx, "correctIndex", oIdx)}
-                      className={cn(
-                        "size-5 rounded-full border-2 shrink-0 transition-colors",
-                        q.correctIndex === oIdx ? "border-primary bg-primary" : "border-muted-foreground/30"
-                      )}
-                      aria-label={`Marquer option ${oIdx + 1} comme correcte`}
-                    />
-                    <Input
-                      placeholder={`Option ${oIdx + 1}`}
-                      value={opt}
-                      onChange={(e) => updateOption(qIdx, oIdx, e.target.value)}
-                      className="text-sm h-8"
-                    />
-                  </div>
-                ))}
+                {q.options.map((opt, oIdx) => {
+                  const isCorrect = q.correctIndexes.includes(oIdx)
+                  return (
+                    <div key={oIdx} className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => toggleCorrect(qIdx, oIdx)}
+                        className={cn(
+                          "size-5 rounded border-2 shrink-0 flex items-center justify-center transition-colors",
+                          isCorrect ? "border-primary bg-primary" : "border-muted-foreground/30"
+                        )}
+                        aria-label={`Marquer option ${oIdx + 1} comme correcte`}
+                      >
+                        {isCorrect && <Check className="size-3 text-white" />}
+                      </button>
+                      <Input
+                        placeholder={`Option ${oIdx + 1}`}
+                        value={opt}
+                        onChange={(e) => updateOption(qIdx, oIdx, e.target.value)}
+                        className="text-sm h-8"
+                      />
+                    </div>
+                  )
+                })}
               </div>
               <p className="text-xs text-muted-foreground">
-                Cliquez sur le cercle pour marquer la bonne réponse (option {q.correctIndex + 1} sélectionnée)
+                Cochez une ou plusieurs bonnes réponses ({q.correctIndexes.length} sélectionnée{q.correctIndexes.length > 1 ? "s" : ""})
               </p>
             </div>
           </CardContent>
         </Card>
       ))}
+
+      {/* Bouton d'ajout en bas */}
+      {quiz.length > 0 && (
+        <Button size="sm" variant="outline" onClick={addQuestion} className="self-start">
+          <PlusCircle />
+          Ajouter une question
+        </Button>
+      )}
     </div>
+  )
+}
+
+// ─── Content Block Editor ──────────────────────────────────────────────────────
+function ContentBlockEditor({ block, onChange, onDelete, onMoveUp, onMoveDown, isFirst, isLast }: {
+  block: ContentBlock
+  onChange: (b: ContentBlock) => void
+  onDelete: () => void
+  onMoveUp: () => void
+  onMoveDown: () => void
+  isFirst: boolean
+  isLast: boolean
+}) {
+  const cfg = BLOCK_TYPE_CONFIG[block.type]
+  const TypeIcon = cfg.icon
+
+  return (
+    <Card className="border-border">
+      <CardContent className="pt-4 pb-3 flex flex-col gap-3">
+        {/* Block header */}
+        <div className="flex items-center gap-2">
+          <TypeIcon className={cn("size-4", cfg.color)} />
+          <span className="text-sm font-medium text-foreground flex-1">
+            {cfg.label}
+          </span>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="sm" onClick={onMoveUp} disabled={isFirst} className="h-7 w-7 p-0">
+              <ArrowUp className="size-3.5" />
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onMoveDown} disabled={isLast} className="h-7 w-7 p-0">
+              <ArrowDown className="size-3.5" />
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onDelete} className="text-destructive h-7 w-7 p-0">
+              <Trash2 className="size-3.5" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Block type selector */}
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-xs">Type de contenu</Label>
+          <Select
+            value={block.type}
+            onValueChange={(v) => onChange({ ...block, type: v as ContentBlockType })}
+          >
+            <SelectTrigger className="h-8 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(BLOCK_TYPE_CONFIG) as ContentBlockType[]).map((t) => {
+                const c = BLOCK_TYPE_CONFIG[t]
+                return (
+                  <SelectItem key={t} value={t}>
+                    <div className="flex items-center gap-2">
+                      <c.icon className={cn("size-4", c.color)} />
+                      {c.label}
+                    </div>
+                  </SelectItem>
+                )
+              })}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Block content by type */}
+        {block.type === "texte" && (
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">Contenu</Label>
+            <RichTextEditor
+              value={block.content || ""}
+              onChange={(html) => onChange({ ...block, content: html })}
+              placeholder="Rédigez votre contenu ici..."
+            />
+          </div>
+        )}
+
+        {block.type === "video" && (
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs">URL de la vidéo (YouTube embed ou lien direct)</Label>
+              <Input
+                value={block.videoUrl || ""}
+                onChange={(e) => onChange({ ...block, videoUrl: e.target.value })}
+                placeholder="https://www.youtube.com/embed/..."
+              />
+            </div>
+            {block.videoUrl && (
+              <div className="aspect-video w-full rounded-lg overflow-hidden bg-black border">
+                <iframe
+                  src={block.videoUrl}
+                  className="w-full h-full"
+                  allowFullScreen
+                  title="Aperçu vidéo"
+                />
+              </div>
+            )}
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs">Description</Label>
+              <Textarea
+                rows={3}
+                value={block.content || ""}
+                onChange={(e) => onChange({ ...block, content: e.target.value })}
+                placeholder="Description de la vidéo..."
+              />
+            </div>
+          </div>
+        )}
+
+        {block.type === "quiz" && (
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs">Introduction du quiz</Label>
+              <Textarea
+                rows={2}
+                value={block.content || ""}
+                onChange={(e) => onChange({ ...block, content: e.target.value })}
+                placeholder="Instructions pour les étudiants..."
+              />
+            </div>
+            <Separator />
+            <QuizEditor
+              quiz={block.quiz || []}
+              onChange={(q) => onChange({ ...block, quiz: q })}
+            />
+          </div>
+        )}
+
+        {block.type === "sandbox" && (
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs">Instructions</Label>
+              <Textarea
+                rows={3}
+                value={block.content || ""}
+                onChange={(e) => onChange({ ...block, content: e.target.value })}
+                placeholder="Expliquez l'exercice aux étudiants..."
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs">Langage</Label>
+              <Select
+                value={block.language || "html"}
+                onValueChange={(v) => onChange({ ...block, language: v as SandboxLanguage })}
+              >
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="html">HTML / CSS / JS</SelectItem>
+                  <SelectItem value="python">Python</SelectItem>
+                  <SelectItem value="javascript">JavaScript</SelectItem>
+                  <SelectItem value="java">Java</SelectItem>
+                  <SelectItem value="c">C</SelectItem>
+                  <SelectItem value="cpp">C++</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs">Code de départ</Label>
+              <Textarea
+                rows={10}
+                value={block.sandboxCode || ""}
+                onChange={(e) => onChange({ ...block, sandboxCode: e.target.value })}
+                placeholder={block.language === "html" ? "<!-- Entrez le code HTML/CSS/JS -->" : "// Entrez votre code ici"}
+                className="font-mono text-sm"
+              />
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 
 // ─── Lesson Editor ─────────────────────────────────────────────────────────────
 function LessonEditor({ lesson, onChange }: { lesson: Lesson; onChange: (l: Lesson) => void }) {
-  const TypeIcon = LESSON_TYPE_CONFIG[lesson.type].icon
+  const addBlock = (type: ContentBlockType) => {
+    const newBlock: ContentBlock = { id: generateId(), type }
+    onChange({ ...lesson, blocks: [...lesson.blocks, newBlock] })
+  }
+
+  const updateBlock = (blockId: string, updated: ContentBlock) => {
+    onChange({
+      ...lesson,
+      blocks: lesson.blocks.map((b) => (b.id === blockId ? updated : b)),
+    })
+  }
+
+  const deleteBlock = (blockId: string) => {
+    onChange({ ...lesson, blocks: lesson.blocks.filter((b) => b.id !== blockId) })
+  }
+
+  const moveBlock = (blockId: string, direction: -1 | 1) => {
+    const idx = lesson.blocks.findIndex((b) => b.id === blockId)
+    const newIdx = idx + direction
+    if (newIdx < 0 || newIdx >= lesson.blocks.length) return
+    const blocks = [...lesson.blocks]
+    ;[blocks[idx], blocks[newIdx]] = [blocks[newIdx], blocks[idx]]
+    onChange({ ...lesson, blocks })
+  }
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2 mb-1">
-        <TypeIcon className={cn("size-4", LESSON_TYPE_CONFIG[lesson.type].color)} />
-        <span className="text-sm font-medium text-foreground">Leçon — {LESSON_TYPE_CONFIG[lesson.type].label}</span>
-      </div>
-
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="lesson-title">Titre de la leçon</Label>
         <Input
@@ -143,31 +499,6 @@ function LessonEditor({ lesson, onChange }: { lesson: Lesson; onChange: (l: Less
           onChange={(e) => onChange({ ...lesson, title: e.target.value })}
           placeholder="Titre de la leçon..."
         />
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="lesson-type">Type de leçon</Label>
-        <Select
-          value={lesson.type}
-          onValueChange={(v) => onChange({ ...lesson, type: v as LessonType })}
-        >
-          <SelectTrigger id="lesson-type">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {(Object.keys(LESSON_TYPE_CONFIG) as LessonType[]).map((t) => {
-              const cfg = LESSON_TYPE_CONFIG[t]
-              return (
-                <SelectItem key={t} value={t}>
-                  <div className="flex items-center gap-2">
-                    <cfg.icon className={cn("size-4", cfg.color)} />
-                    {cfg.label}
-                  </div>
-                </SelectItem>
-              )
-            })}
-          </SelectContent>
-        </Select>
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -181,97 +512,64 @@ function LessonEditor({ lesson, onChange }: { lesson: Lesson; onChange: (l: Less
         />
       </div>
 
-      {lesson.type === "texte" && (
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="lesson-content">Contenu (Markdown supporté)</Label>
-          <Textarea
-            id="lesson-content"
-            rows={10}
-            value={lesson.content}
-            onChange={(e) => onChange({ ...lesson, content: e.target.value })}
-            placeholder="Rédigez votre leçon ici... Le Markdown est supporté."
-            className="font-mono text-sm"
-          />
-        </div>
-      )}
+      <Separator />
 
-      {lesson.type === "video" && (
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="video-url">URL de la vidéo (YouTube embed ou lien direct)</Label>
-            <Input
-              id="video-url"
-              value={lesson.videoUrl || ""}
-              onChange={(e) => onChange({ ...lesson, videoUrl: e.target.value })}
-              placeholder="https://www.youtube.com/embed/..."
-            />
+      {/* Blocks */}
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-medium text-foreground">
+            Contenus ({lesson.blocks.length})
+          </p>
+          <div className="flex items-center gap-1.5">
+            {(Object.keys(BLOCK_TYPE_CONFIG) as ContentBlockType[]).map((t) => {
+              const cfg = BLOCK_TYPE_CONFIG[t]
+              return (
+                <Button key={t} size="sm" variant="outline" onClick={() => addBlock(t)} className="h-7 px-2 text-xs">
+                  <cfg.icon className={cn("size-3.5", cfg.color)} />
+                  {cfg.label}
+                </Button>
+              )
+            })}
           </div>
-          {lesson.videoUrl && (
-            <div className="aspect-video w-full rounded-lg overflow-hidden bg-black border">
-              <iframe
-                src={lesson.videoUrl}
-                className="w-full h-full"
-                allowFullScreen
-                title="Aperçu vidéo"
-              />
+        </div>
+
+        {lesson.blocks.length === 0 && (
+          <div className="text-center py-8 text-muted-foreground text-sm border-2 border-dashed rounded-lg">
+            Aucun contenu. Ajoutez une vidéo, du texte, un quiz ou un exercice sandbox.
+          </div>
+        )}
+
+        {lesson.blocks.map((block, idx) => (
+          <ContentBlockEditor
+            key={block.id}
+            block={block}
+            onChange={(b) => updateBlock(block.id, b)}
+            onDelete={() => deleteBlock(block.id)}
+            onMoveUp={() => moveBlock(block.id, -1)}
+            onMoveDown={() => moveBlock(block.id, 1)}
+            isFirst={idx === 0}
+            isLast={idx === lesson.blocks.length - 1}
+          />
+        ))}
+
+        {/* Boutons d'ajout en bas */}
+        {lesson.blocks.length > 0 && (
+          <div className="border-t pt-3 mt-1">
+            <p className="text-xs text-muted-foreground mb-2">Ajouter un contenu :</p>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {(Object.keys(BLOCK_TYPE_CONFIG) as ContentBlockType[]).map((t) => {
+                const cfg = BLOCK_TYPE_CONFIG[t]
+                return (
+                  <Button key={t} size="sm" variant="outline" onClick={() => addBlock(t)} className="h-7 px-2 text-xs">
+                    <cfg.icon className={cn("size-3.5", cfg.color)} />
+                    {cfg.label}
+                  </Button>
+                )
+              })}
             </div>
-          )}
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="video-desc">Description</Label>
-            <Textarea
-              id="video-desc"
-              rows={3}
-              value={lesson.content}
-              onChange={(e) => onChange({ ...lesson, content: e.target.value })}
-              placeholder="Description de la vidéo..."
-            />
           </div>
-        </div>
-      )}
-
-      {lesson.type === "quiz" && (
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1.5">
-            <Label>Introduction du quiz</Label>
-            <Textarea
-              rows={2}
-              value={lesson.content}
-              onChange={(e) => onChange({ ...lesson, content: e.target.value })}
-              placeholder="Instructions pour les étudiants..."
-            />
-          </div>
-          <Separator />
-          <QuizEditor
-            quiz={lesson.quiz || []}
-            onChange={(q) => onChange({ ...lesson, quiz: q })}
-          />
-        </div>
-      )}
-
-      {lesson.type === "sandbox" && (
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1.5">
-            <Label>Instructions</Label>
-            <Textarea
-              rows={3}
-              value={lesson.content}
-              onChange={(e) => onChange({ ...lesson, content: e.target.value })}
-              placeholder="Expliquez l'exercice aux étudiants..."
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="sandbox-code">Code de départ (HTML/CSS/JS)</Label>
-            <Textarea
-              id="sandbox-code"
-              rows={12}
-              value={lesson.sandboxCode || ""}
-              onChange={(e) => onChange({ ...lesson, sandboxCode: e.target.value })}
-              placeholder="<!-- Entrez le code de départ pour l'exercice -->"
-              className="font-mono text-sm"
-            />
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }
@@ -319,7 +617,8 @@ function ModuleItem({
       {isExpanded && (
         <div className="flex flex-col">
           {module.lessons.map((lesson) => {
-            const cfg = LESSON_TYPE_CONFIG[lesson.type]
+            const firstBlockType = lesson.blocks[0]?.type ?? "texte"
+            const cfg = BLOCK_TYPE_CONFIG[firstBlockType]
             return (
               <div
                 key={lesson.id}
@@ -365,10 +664,12 @@ interface CourseEditorProps {
 }
 
 export function CourseEditor({ initial, onSave }: CourseEditorProps) {
-  const [course, setCourse] = useState<Course>(initial)
-  const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set(initial.modules.map((m) => m.id)))
+  const [course, setCourse] = useState<Course>(() => normalizeCourse(initial))
+  const [expandedModules, setExpandedModules] = useState<Set<string>>(
+    () => new Set((initial.modules || []).map((m) => m.id))
+  )
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(
-    initial.modules[0]?.lessons[0]?.id ?? null
+    () => initial.modules?.[0]?.lessons?.[0]?.id ?? null
   )
   const [activeTab, setActiveTab] = useState<"structure" | "parametres">("structure")
   const [saved, setSaved] = useState(false)
@@ -406,9 +707,8 @@ export function CourseEditor({ initial, onSave }: CourseEditorProps) {
     const newLesson: Lesson = {
       id: generateId(),
       title: "Nouvelle leçon",
-      type: "texte",
-      content: "",
       duration: 15,
+      blocks: [{ id: generateId(), type: "texte", content: "" }],
     }
     setCourse((c) => ({
       ...c,

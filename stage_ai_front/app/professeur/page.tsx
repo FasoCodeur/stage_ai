@@ -1,21 +1,38 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { useAuth } from "@/lib/auth-context"
-import { COURSES, ENROLLMENTS, USERS } from "@/lib/mock-data"
+import { useCourseStore } from "@/lib/stores/course-store"
+import { useEnrollmentStore } from "@/lib/stores/enrollment-store"
+import { useUserStore } from "@/lib/stores/user-store"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Progress } from "@/components/ui/progress"
 import { buttonVariants } from "@/components/ui/button"
-import { BookOpen, Users, TrendingUp, GraduationCap, PlusCircle, ArrowRight } from "lucide-react"
+import { BookOpen, Users, TrendingUp, GraduationCap, PlusCircle, ArrowRight, Loader2 } from "lucide-react"
 import Link from "next/link"
 
 export default function ProfesseurPage() {
   const { user } = useAuth()
+  const { courses, fetchCoursesByProfessor } = useCourseStore()
+  const { enrollments, fetchAllEnrollments } = useEnrollmentStore()
+  const { users, fetchUsers } = useUserStore()
+  const [loading, setLoading] = useState(true)
 
-  const myCourses = COURSES.filter((c) => c.professorId === user?.id)
-  const totalStudents = new Set(myCourses.flatMap((c) => c.students)).size
-  const allEnrollments = ENROLLMENTS.filter((e) =>
+  useEffect(() => {
+    const load = async () => {
+      if (user) {
+        await Promise.all([fetchCoursesByProfessor(user.id), fetchAllEnrollments(), fetchUsers()])
+      }
+      setLoading(false)
+    }
+    load()
+  }, [user, fetchCoursesByProfessor, fetchAllEnrollments, fetchUsers])
+
+  const myCourses = courses.filter((c) => c.professorId === user?.id)
+  const totalStudents = new Set(myCourses.flatMap((c) => c.students || [])).size
+  const allEnrollments = enrollments.filter((e) =>
     myCourses.some((c) => c.id === e.courseId)
   )
   const avgProgress =
@@ -29,6 +46,17 @@ export default function ProfesseurPage() {
     { label: "Etudiants actifs", value: totalStudents, icon: Users, color: "text-chart-2", bg: "bg-chart-2/10" },
     { label: "Progression moy.", value: `${avgProgress}%`, icon: GraduationCap, color: "text-warning", bg: "bg-warning/10" },
   ]
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64 gap-2 text-muted-foreground">
+        <Loader2 className="size-5 animate-spin" />
+        Chargement...
+      </div>
+    )
+  }
+
+  const userById = (id: string) => users.find((u) => u.id === id)
 
   return (
     <div className="flex flex-col gap-6">
@@ -83,7 +111,7 @@ export default function ProfesseurPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-foreground truncate">{c.title}</p>
-                      <p className="text-xs text-muted-foreground">{c.students.length} étudiant{c.students.length > 1 ? "s" : ""} · {c.modules.length} modules</p>
+                      <p className="text-xs text-muted-foreground">{(c.students?.length || 0)} étudiant{(c.students?.length || 0) > 1 ? "s" : ""} · {c.modules.length} modules</p>
                     </div>
                     <Badge variant={c.published ? "default" : "secondary"} className="text-xs shrink-0">
                       {c.published ? "Publié" : "Brouillon"}
@@ -104,8 +132,8 @@ export default function ProfesseurPage() {
           <CardContent>
             <div className="flex flex-col gap-3">
               {allEnrollments.slice(0, 5).map((enrollment) => {
-                const student = USERS.find((u) => u.id === enrollment.userId)
-                const course = COURSES.find((c) => c.id === enrollment.courseId)
+                const student = userById(enrollment.userId)
+                const course = myCourses.find((c) => c.id === enrollment.courseId)
                 if (!student || !course) return null
                 return (
                   <div key={`${enrollment.userId}-${enrollment.courseId}`} className="flex items-center gap-3">

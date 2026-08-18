@@ -1,28 +1,28 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect } from "react"
 import { useAuth } from "@/lib/auth-context"
-import { COURSES, ENROLLMENTS, PURCHASES, isCourseNew, hasAccess, getSubscription, Course, Enrollment } from "@/lib/mock-data"
+import { isCourseNew, Course, Enrollment } from "@/lib/mock-data"
+import { useCourseStore } from "@/lib/stores/course-store"
+import { useEnrollmentStore } from "@/lib/stores/enrollment-store"
+import { usePurchaseStore } from "@/lib/stores/purchase-store"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { Play, Clock, Users, Sparkles, Lock, Phone, Crown, ChevronRight } from "lucide-react"
+import { Play, Clock, Users, Sparkles, Phone, Loader2 } from "lucide-react"
 import Link from "next/link"
-import { OrangeMoneyModal } from "@/components/etudiant/orange-money-modal"
 
 function CourseCard({
   c,
   isEnrolled,
   enrollment,
   hasAccess: access,
-  onPurchase,
 }: {
   c: Course
   isEnrolled: boolean
   enrollment?: Enrollment
   hasAccess: boolean
-  onPurchase: (course: Course) => void
 }) {
   const isNew = isCourseNew(c)
 
@@ -35,13 +35,10 @@ function CourseCard({
         </span>
       )}
       {!access && (
-        <div className="absolute inset-0 z-10 rounded-[inherit] bg-background/60 backdrop-blur-[1px] flex items-center justify-center">
-          <div className="flex flex-col items-center gap-2 text-center px-4">
-            <Lock className="size-6 text-muted-foreground" />
-            <p className="text-xs font-medium text-foreground">Accès restreint</p>
-            <p className="text-[11px] text-muted-foreground leading-tight">Abonnez-vous ou achetez ce cours</p>
-          </div>
-        </div>
+        <span className="absolute top-2 left-2 z-10 inline-flex items-center gap-1 rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-semibold text-white shadow">
+          <Sparkles className="size-2.5" />
+          Aperçu gratuit
+        </span>
       )}
       <div className="h-28 bg-primary/5 flex items-center justify-center border-b">
         <span className="text-5xl">{c.thumbnail}</span>
@@ -57,7 +54,7 @@ function CourseCard({
 
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <div className="flex items-center gap-1"><Clock className="size-3" />{c.duration}h</div>
-          <div className="flex items-center gap-1"><Users className="size-3" />{c.students.length} inscrits</div>
+          <div className="flex items-center gap-1"><Users className="size-3" />{c.students?.length || 0} inscrits</div>
           <span className="ml-auto font-semibold text-foreground">{c.price.toLocaleString("fr-FR")} FCFA</span>
         </div>
 
@@ -81,13 +78,13 @@ function CourseCard({
               {isEnrolled ? (enrollment && enrollment.progress > 0 ? "Continuer" : "Commencer") : "Commencer"}
             </Link>
           ) : (
-            <button
-              onClick={() => onPurchase(c)}
+            <Link
+              href={`/etudiant/cours/${c.id}`}
               className="inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-orange-500/40 bg-orange-500/8 px-3 py-1.5 text-xs font-semibold text-orange-600 hover:bg-orange-500/15 transition-colors h-8"
             >
               <Phone className="size-3" />
-              Acheter via Orange Money
-            </button>
+              Voir l'aperçu & acheter
+            </Link>
           )}
         </div>
       </CardContent>
@@ -97,19 +94,36 @@ function CourseCard({
 
 export default function EtudiantCoursPage() {
   const { user } = useAuth()
-  const [purchaseCourse, setPurchaseCourse] = useState<Course | null>(null)
+  const { courses, isLoading, fetchCourses } = useCourseStore()
+  const { enrollments, fetchEnrollmentsByUser } = useEnrollmentStore()
+  const { purchases, fetchPurchasesByUser } = usePurchaseStore()
 
-  const myEnrollments = ENROLLMENTS.filter((e) => e.userId === user?.id)
+  useEffect(() => {
+    const load = async () => {
+      await fetchCourses()
+      if (user) {
+        await Promise.all([fetchEnrollmentsByUser(user.id), fetchPurchasesByUser(user.id)])
+      }
+    }
+    load()
+  }, [user, fetchCourses, fetchEnrollmentsByUser, fetchPurchasesByUser])
+
+  const myEnrollments = enrollments.filter((e) => e.userId === user?.id)
   const enrolledIds = new Set(myEnrollments.map((e) => e.courseId))
+  const purchasedIds = new Set(purchases.filter((p) => p.userId === user?.id).map((p) => p.courseId))
 
-  const subscription = user ? getSubscription(user.id) : null
-  const publishedCourses = COURSES.filter((c) => c.published)
+  const publishedCourses = courses.filter((c) => c.published)
   const newCourses = publishedCourses.filter((c) => isCourseNew(c))
   const otherCourses = publishedCourses.filter((c) => !isCourseNew(c))
 
-  const daysLeft = subscription
-    ? Math.max(0, Math.ceil((new Date(subscription.endDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
-    : null
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64 gap-2 text-muted-foreground">
+        <Loader2 className="size-5 animate-spin" />
+        Chargement des formations...
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -118,25 +132,12 @@ export default function EtudiantCoursPage() {
           <h1 className="text-2xl font-bold text-foreground">Catalogue des formations</h1>
           <p className="text-sm text-muted-foreground mt-1">{publishedCourses.length} formations disponibles</p>
         </div>
-        {/* Subscription badge */}
-        {subscription ? (
-          <div className="inline-flex items-center gap-2 rounded-xl border border-primary/25 bg-primary/6 px-4 py-2 text-sm">
-            <Crown className="size-4 text-primary" />
-            <div>
-              <span className="font-semibold text-foreground text-xs">Abonnement actif</span>
-              <span className="block text-[11px] text-muted-foreground">{daysLeft} jours restants</span>
-            </div>
-          </div>
-        ) : (
-          <Link
-            href="/etudiant/abonnement"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-orange-500/30 bg-orange-500/6 px-4 py-2 text-xs font-semibold text-orange-600 hover:bg-orange-500/12 transition-colors"
-          >
-            <Phone className="size-3.5" />
-            S&apos;abonner — 35 000 FCFA/mois
-            <ChevronRight className="size-3" />
-          </Link>
-        )}
+        <Link
+          href="/etudiant/programmes"
+          className="inline-flex items-center gap-1.5 rounded-xl border border-primary/25 bg-primary/6 px-4 py-2 text-xs font-semibold text-primary hover:bg-primary/12 transition-colors"
+        >
+          Voir les programmes avec abonnement
+        </Link>
       </div>
 
       {/* New courses highlight */}
@@ -154,8 +155,7 @@ export default function EtudiantCoursPage() {
                 c={c}
                 isEnrolled={enrolledIds.has(c.id)}
                 enrollment={myEnrollments.find((e) => e.courseId === c.id)}
-                hasAccess={user ? hasAccess(user.id, c.id) : false}
-                onPurchase={setPurchaseCourse}
+                hasAccess={user ? (enrolledIds.has(c.id) || purchasedIds.has(c.id)) : false}
               />
             ))}
           </div>
@@ -172,21 +172,12 @@ export default function EtudiantCoursPage() {
               c={c}
               isEnrolled={enrolledIds.has(c.id)}
               enrollment={myEnrollments.find((e) => e.courseId === c.id)}
-              hasAccess={user ? hasAccess(user.id, c.id) : false}
-              onPurchase={setPurchaseCourse}
+              hasAccess={user ? (enrolledIds.has(c.id) || purchasedIds.has(c.id)) : false}
             />
           ))}
         </div>
       </section>
 
-      {/* Orange Money purchase modal */}
-      {purchaseCourse && (
-        <OrangeMoneyModal
-          course={purchaseCourse}
-          open={!!purchaseCourse}
-          onClose={() => setPurchaseCourse(null)}
-        />
-      )}
     </div>
   )
 }

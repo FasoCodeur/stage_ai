@@ -1,22 +1,39 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { useAuth } from "@/lib/auth-context"
-import { COURSES, ENROLLMENTS, isCourseNew } from "@/lib/mock-data"
+import { isCourseNew } from "@/lib/mock-data"
+import { useCourseStore } from "@/lib/stores/course-store"
+import { useEnrollmentStore } from "@/lib/stores/enrollment-store"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { BookOpen, Trophy, Clock, ArrowRight, Play, Sparkles } from "lucide-react"
+import { BookOpen, Trophy, Clock, ArrowRight, Play, Sparkles, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { AIProgressCard } from "@/components/etudiant/ai-progress-card"
 
 export default function EtudiantPage() {
   const { user } = useAuth()
-  const myEnrollments = ENROLLMENTS.filter((e) => e.userId === user?.id)
+  const { courses, fetchCourses } = useCourseStore()
+  const { enrollments, fetchEnrollmentsByUser } = useEnrollmentStore()
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const load = async () => {
+      if (user) {
+        await Promise.all([fetchCourses(), fetchEnrollmentsByUser(user.id)])
+      }
+      setLoading(false)
+    }
+    load()
+  }, [user, fetchCourses, fetchEnrollmentsByUser])
+
+  const myEnrollments = enrollments.filter((e) => e.userId === user?.id)
   const enrolledIds = new Set(myEnrollments.map((e) => e.courseId))
   const myCourses = myEnrollments.map((e) => ({
     enrollment: e,
-    course: COURSES.find((c) => c.id === e.courseId)!,
+    course: courses.find((c) => c.id === e.courseId)!,
   })).filter((x) => x.course)
 
   const avgProgress = myEnrollments.length > 0
@@ -25,13 +42,22 @@ export default function EtudiantPage() {
 
   const completed = myEnrollments.filter((e) => e.progress === 100).length
 
-  const newCourses = COURSES.filter((c) => c.published && isCourseNew(c) && !enrolledIds.has(c.id))
+  const newCourses = courses.filter((c) => c.published && isCourseNew(c) && !enrolledIds.has(c.id))
 
   const STATS = [
     { label: "Formations suivies", value: myEnrollments.length, icon: BookOpen, color: "text-primary", bg: "bg-primary/10" },
     { label: "Progression moyenne", value: `${avgProgress}%`, icon: Trophy, color: "text-chart-3", bg: "bg-chart-3/10" },
     { label: "Terminées", value: completed, icon: Clock, color: "text-chart-2", bg: "bg-chart-2/10" },
   ]
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64 gap-2 text-muted-foreground">
+        <Loader2 className="size-5 animate-spin" />
+        Chargement...
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -94,7 +120,7 @@ export default function EtudiantPage() {
           completedLessons: enrollment.completedLessons.length,
           totalLessons: course.modules.reduce((a, m) => a + m.lessons.length, 0),
         }))}
-        availableCourses={COURSES.filter((c) => c.published && !enrolledIds.has(c.id)).map((c) => ({
+        availableCourses={courses.filter((c) => c.published && !enrolledIds.has(c.id)).map((c) => ({
           title: c.title,
           category: c.category,
           level: c.level,
@@ -140,7 +166,7 @@ export default function EtudiantPage() {
 
           {myCourses.length === 0 && (
             <div className="col-span-2 text-center py-12 text-muted-foreground text-sm">
-              Vous n&apos;êtes inscrit à aucune formation. Explorez le catalogue !
+              Vous n'êtes inscrit à aucune formation. Explorez le catalogue !
             </div>
           )}
         </div>

@@ -1,10 +1,10 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { useUserStore } from "@/lib/stores/user-store"
+import { useCourseStore } from "@/lib/stores/course-store"
 import type { User } from "@/lib/mock-data"
-import { COURSES } from "@/lib/mock-data"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -63,8 +63,14 @@ export default function AdminProfesseursPage() {
   const suspendUser = useUserStore((state) => state.suspendUser)
   const reactivateUser = useUserStore((state) => state.reactivateUser)
   const transferCourses = useUserStore((state) => state.transferCourses)
+  const courses = useCourseStore((state) => state.courses)
+  const fetchCourses = useCourseStore((state) => state.fetchCourses)
   const [search, setSearch] = useState("")
   const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    fetchCourses()
+  }, [fetchCourses])
 
   // Transfer modal state
   const [transferOpen, setTransferOpen] = useState(false)
@@ -135,7 +141,7 @@ export default function AdminProfesseursPage() {
 
   const openTransfer = (professorId: string) => {
     setFromProfessor(professorId)
-    const profCourses = COURSES.filter((c) => c.professorId === professorId)
+    const profCourses = courses.filter((c) => c.professorId === professorId)
     setSelectedCourses(profCourses.map((c) => c.id))
     setSelectAll(true)
     setToProfessor("")
@@ -160,7 +166,7 @@ export default function AdminProfesseursPage() {
 
   const toggleSelectAll = () => {
     if (!fromProfessor) return
-    const profCourses = COURSES.filter((c) => c.professorId === fromProfessor)
+    const profCourses = courses.filter((c) => c.professorId === fromProfessor)
     if (selectAll) {
       setSelectedCourses([])
       setSelectAll(false)
@@ -175,7 +181,7 @@ export default function AdminProfesseursPage() {
     : []
 
   const fromProfCourses = fromProfessor
-    ? COURSES.filter((c) => c.professorId === fromProfessor)
+    ? courses.filter((c) => c.professorId === fromProfessor)
     : []
 
   return (

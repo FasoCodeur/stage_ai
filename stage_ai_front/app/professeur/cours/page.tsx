@@ -1,23 +1,60 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { useAuth } from "@/lib/auth-context"
-import { COURSES } from "@/lib/mock-data"
+import { useCourseStore } from "@/lib/stores/course-store"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
-import { PlusCircle, Edit, Users, Clock } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { PlusCircle, Edit, Users, Clock, Loader2, Eye, Trash2 } from "lucide-react"
 import Link from "next/link"
 
 export default function ProfCourseListPage() {
   const { user } = useAuth()
-  const myCourses = COURSES.filter((c) => c.professorId === user?.id)
+  const { courses, isLoading, fetchCoursesByProfessor, deleteCourseApi } = useCourseStore()
+  const [courseToDelete, setCourseToDelete] = useState<{ id: string; title: string } | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState("")
+  const [confirmOpen, setConfirmOpen] = useState(false)
+
+  useEffect(() => {
+    if (user) {
+      fetchCoursesByProfessor(user.id)
+    }
+  }, [user, fetchCoursesByProfessor])
+
+  const handleDelete = async () => {
+    if (!courseToDelete) return
+    setDeleting(true)
+    setDeleteError("")
+    try {
+      await deleteCourseApi(courseToDelete.id)
+      setCourseToDelete(null)
+      setConfirmOpen(false)
+    } catch (err: any) {
+      setDeleteError(err.message || "Erreur lors de la suppression du cours")
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64 gap-2 text-muted-foreground">
+        <Loader2 className="size-5 animate-spin" />
+        Chargement des cours...
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Mes cours</h1>
-          <p className="text-sm text-muted-foreground mt-1">{myCourses.length} cours créés</p>
+          <p className="text-sm text-muted-foreground mt-1">{courses.length} cours créés</p>
         </div>
         <Link href="/professeur/cours/nouveau" className={buttonVariants({ variant: "default" })}>
           <PlusCircle />
@@ -26,7 +63,7 @@ export default function ProfCourseListPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {myCourses.map((c) => (
+        {courses.map((c) => (
           <Card key={c.id} className="overflow-hidden">
             <div className="h-28 bg-primary/5 flex items-center justify-center border-b">
               <span className="text-5xl">{c.thumbnail}</span>
@@ -45,7 +82,7 @@ export default function ProfCourseListPage() {
               <div className="flex items-center gap-3 text-xs text-muted-foreground">
                 <div className="flex items-center gap-1">
                   <Users className="size-3" />
-                  {c.students.length} étudiant{c.students.length > 1 ? "s" : ""}
+                  {c.students?.length || 0} étudiant{(c.students?.length || 0) > 1 ? "s" : ""}
                 </div>
                 <div className="flex items-center gap-1">
                   <Clock className="size-3" />
@@ -54,10 +91,34 @@ export default function ProfCourseListPage() {
                 <Badge variant="outline" className="text-xs ml-auto">{c.level}</Badge>
               </div>
 
-              <Link href={`/professeur/cours/${c.id}`} className={buttonVariants({ variant: "outline", size: "sm", className: "w-full" })}>
-                <Edit />
-                Modifier le cours
-              </Link>
+              <div className="flex items-center gap-2">
+                <Link
+                  href={`/professeur/cours/${c.id}/apercu`}
+                  className={buttonVariants({ variant: "outline", size: "sm", className: "flex-1" })}
+                >
+                  <Eye />
+                  Afficher
+                </Link>
+                <Link
+                  href={`/professeur/cours/${c.id}`}
+                  className={buttonVariants({ variant: "outline", size: "sm", className: "flex-1" })}
+                >
+                  <Edit />
+                  Modifier
+                </Link>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive"
+                  onClick={() => {
+                    setCourseToDelete({ id: c.id, title: c.title })
+                    setDeleteError("")
+                    setConfirmOpen(true)
+                  }}
+                >
+                  <Trash2 />
+                </Button>
+              </div>
             </CardContent>
           </Card>
         ))}
@@ -73,6 +134,32 @@ export default function ProfCourseListPage() {
           </div>
         </Link>
       </div>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Supprimer ce cours ?</DialogTitle>
+            <DialogDescription>
+              Cette action est irréversible. Le cours « {courseToDelete?.title ?? ""} » et tout son contenu seront définitivement supprimés.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteError && (
+            <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-4 py-2 text-sm text-destructive">
+              {deleteError}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" disabled={deleting} onClick={() => setConfirmOpen(false)}>
+              Annuler
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting} className="w-full sm:w-auto">
+              {deleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 />}
+              {deleting ? "Suppression..." : "Supprimer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

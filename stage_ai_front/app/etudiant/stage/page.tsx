@@ -1,11 +1,12 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { useAuth } from "@/lib/auth-context"
-import { STAGE_REQUESTS } from "@/lib/mock-data"
+import { useStageRequestStore } from "@/lib/stores/stage-request-store"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Briefcase, Clock, CheckCircle2, XCircle, Building2 } from "lucide-react"
+import { Briefcase, Clock, CheckCircle2, XCircle, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const STATUS_CONFIG = {
@@ -16,8 +17,47 @@ const STATUS_CONFIG = {
 
 export default function EtudiantStagePage() {
   const { user } = useAuth()
-  const myStage = STAGE_REQUESTS.find((s) => s.studentId === user?.id)
-  const availableStages = STAGE_REQUESTS.filter((s) => !s.studentId)
+  const { stageRequests, isLoading, fetchStageRequests, createStageRequest } = useStageRequestStore()
+  const [applying, setApplying] = useState<string | null>(null)
+  const [error, setError] = useState("")
+
+  useEffect(() => {
+    fetchStageRequests().catch(() => {})
+  }, [fetchStageRequests])
+
+  const myStage = stageRequests.find((s) => s.studentId === user?.id)
+  const availableStages = stageRequests.filter((s) => !s.studentId)
+
+  const applyToStage = async (stageId: string, companyName: string, companyLogo: string, title: string, description: string, duration: string, domain: string) => {
+    if (!user || applying) return
+    setApplying(stageId)
+    setError("")
+    try {
+      await createStageRequest({
+        companyName,
+        companyLogo,
+        title,
+        description,
+        duration,
+        domain,
+        studentId: user.id,
+        status: "en_attente",
+      })
+    } catch (err: any) {
+      setError(err.message || "Erreur lors de la candidature")
+    } finally {
+      setApplying(null)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64 gap-2 text-muted-foreground">
+        <Loader2 className="size-5 animate-spin" />
+        Chargement des stages...
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -25,6 +65,12 @@ export default function EtudiantStagePage() {
         <h1 className="text-2xl font-bold text-foreground">Stage Virtuel</h1>
         <p className="text-sm text-muted-foreground mt-1">Découvrez des opportunités de stage et postulez</p>
       </div>
+
+      {error && (
+        <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-4 py-2 text-sm text-destructive">
+          {error}
+        </div>
+      )}
 
       {/* My current stage */}
       {myStage && (() => {
@@ -83,9 +129,14 @@ export default function EtudiantStagePage() {
                     </Badge>
                   </div>
                 </div>
-                <Button size="sm" className="shrink-0 mt-1" disabled={!!myStage}>
-                  <Briefcase />
-                  Postuler
+                <Button
+                  size="sm"
+                  className="shrink-0 mt-1"
+                  disabled={!!myStage || applying === stage.id}
+                  onClick={() => applyToStage(stage.id, stage.companyName, stage.companyLogo, stage.title, stage.description, stage.duration, stage.domain)}
+                >
+                  {applying === stage.id ? <Loader2 className="size-3.5 animate-spin" /> : <Briefcase />}
+                  {applying === stage.id ? "Candidature..." : "Postuler"}
                 </Button>
               </div>
             </CardContent>

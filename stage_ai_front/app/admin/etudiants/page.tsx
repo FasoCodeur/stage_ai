@@ -1,13 +1,17 @@
 "use client"
 
-import { useState } from "react"
-import { USERS, ENROLLMENTS, COURSES, SUBSCRIPTIONS, PURCHASES, PROGRAM_ENROLLMENTS, LEVELS } from "@/lib/mock-data"
+import { useEffect, useState } from "react"
+import { useUserStore } from "@/lib/stores/user-store"
+import { useEnrollmentStore } from "@/lib/stores/enrollment-store"
+import { useCourseStore } from "@/lib/stores/course-store"
+import { useSubscriptionStore } from "@/lib/stores/subscription-store"
+import { usePurchaseStore } from "@/lib/stores/purchase-store"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Progress } from "@/components/ui/progress"
 import { Input } from "@/components/ui/input"
-import { Search, Clock, CreditCard, BookOpen, LogIn } from "lucide-react"
+import { Search, Clock, CreditCard, BookOpen, LogIn, Loader2 } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -15,43 +19,81 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 
-const students = USERS.filter((u) => u.role === "etudiant")
-
-function getPurchaseType(userId: string): { label: string; color: string } {
-  const hasSub = SUBSCRIPTIONS.find((s) => s.userId === userId && s.status === "active")
+function getPurchaseType(
+  userId: string,
+  subscriptions: { userId: string; status: string }[],
+  purchases: { userId: string }[],
+  programEnrollments: { userId: string; status: string }[]
+): { label: string; color: string } {
+  const hasSub = subscriptions.find((s) => s.userId === userId && s.status === "active")
   if (hasSub) return { label: "Abonnement", color: "bg-blue-100 text-blue-700 border-blue-200" }
-  const hasPurchases = PURCHASES.some((p) => p.userId === userId)
+  const hasPurchases = purchases.some((p) => p.userId === userId)
   if (hasPurchases) return { label: "Achat direct", color: "bg-green-100 text-green-700 border-green-200" }
-  const hasProgram = PROGRAM_ENROLLMENTS.some((e) => e.userId === userId && e.status === "active")
+  const hasProgram = programEnrollments.some((e) => e.userId === userId && e.status === "active")
   if (hasProgram) return { label: "Programme", color: "bg-purple-100 text-purple-700 border-purple-200" }
   return { label: "Aucun", color: "bg-gray-100 text-gray-700 border-gray-200" }
 }
 
-function getRemainingDays(userId: string): number | null {
-  const sub = SUBSCRIPTIONS.find((s) => s.userId === userId && s.status === "active")
+function getRemainingDays(
+  userId: string,
+  subscriptions: { userId: string; status: string; endDate: string }[]
+): number | null {
+  const sub = subscriptions.find((s) => s.userId === userId && s.status === "active")
   if (!sub) return null
   const end = new Date(sub.endDate)
   const now = new Date()
   return Math.max(0, Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
 }
 
-function getStudentCourses(userId: string) {
-  const courseEnrollments = ENROLLMENTS.filter((e) => e.userId === userId)
-  const programCompletedCourses = PROGRAM_ENROLLMENTS.filter((e) => e.userId === userId)
-    .flatMap((e) => e.completedCourses)
-  const allCourseIds = [...new Set([...courseEnrollments.map((e) => e.courseId), ...programCompletedCourses])]
-  return COURSES.filter((c) => allCourseIds.includes(c.id))
-}
-
 export default function AdminEtudiantsPage() {
+  const { users, isLoading: loadingUsers, fetchUsers } = useUserStore()
+  const { enrollments, fetchAllEnrollments } = useEnrollmentStore()
+  const { courses, fetchCourses } = useCourseStore()
+  const { subscriptions, fetchAllSubscriptions } = useSubscriptionStore()
+  const { purchases, fetchAllPurchases } = usePurchaseStore()
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null)
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        await Promise.all([
+          fetchUsers(),
+          fetchAllEnrollments(),
+          fetchCourses(),
+          fetchAllSubscriptions(),
+          fetchAllPurchases(),
+        ])
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [fetchUsers, fetchAllEnrollments, fetchCourses, fetchAllSubscriptions, fetchAllPurchases])
+
+  const students = users.filter((u) => u.role === "etudiant")
+
+  const studentCourses = (userId: string) => {
+    const courseEnrollments = enrollments.filter((e) => e.userId === userId)
+    const allCourseIds = courseEnrollments.map((e) => e.courseId)
+    return courses.filter((c) => allCourseIds.includes(c.id))
+  }
 
   const filtered = students.filter(
     (s) =>
       s.name.toLowerCase().includes(search.toLowerCase()) ||
       s.email.toLowerCase().includes(search.toLowerCase())
   )
+
+  if (loading || loadingUsers) {
+    return (
+      <div className="flex items-center justify-center h-64 gap-2 text-muted-foreground">
+        <Loader2 className="size-5 animate-spin" />
+        Chargement des étudiants...
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -87,13 +129,13 @@ export default function AdminEtudiantsPage() {
               </thead>
               <tbody>
                 {filtered.map((s, i) => {
-                  const myEnrollments = ENROLLMENTS.filter((e) => e.userId === s.id)
+                  const myEnrollments = enrollments.filter((e) => e.userId === s.id)
                   const avg = myEnrollments.length > 0
                     ? Math.round(myEnrollments.reduce((a, e) => a + e.progress, 0) / myEnrollments.length)
                     : 0
-                  const purchaseType = getPurchaseType(s.id)
-                  const remainingDays = getRemainingDays(s.id)
-                  const studentCourses = getStudentCourses(s.id)
+                  const purchaseType = getPurchaseType(s.id, subscriptions, purchases, [])
+                  const remainingDays = getRemainingDays(s.id, subscriptions)
+                  const myCourses = studentCourses(s.id)
 
                   return (
                     <tr key={s.id} className={`border-b last:border-0 hover:bg-muted/20 transition-colors ${i % 2 === 0 ? "" : "bg-muted/10"}`}>
@@ -136,7 +178,7 @@ export default function AdminEtudiantsPage() {
                           className="flex items-center gap-1.5 text-xs text-primary hover:underline"
                         >
                           <BookOpen className="size-3.5" />
-                          {studentCourses.length} cours
+                          {myCourses.length} cours
                         </button>
                       </td>
                       <td className="px-4 py-3">
@@ -162,14 +204,14 @@ export default function AdminEtudiantsPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              Cours suivis — {USERS.find((u) => u.id === selectedStudent)?.name || ""}
+              Cours suivis — {users.find((u) => u.id === selectedStudent)?.name || ""}
             </DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-2 max-h-80 overflow-y-auto">
-            {selectedStudent && getStudentCourses(selectedStudent).length === 0 ? (
+            {selectedStudent && studentCourses(selectedStudent).length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">Aucun cours suivi pour le moment.</p>
-            ) : selectedStudent && getStudentCourses(selectedStudent).map((course) => {
-              const courseEnrollment = ENROLLMENTS.find((e) => e.userId === selectedStudent && e.courseId === course.id)
+            ) : selectedStudent && studentCourses(selectedStudent).map((course) => {
+              const courseEnrollment = enrollments.find((e) => e.userId === selectedStudent && e.courseId === course.id)
               return (
                 <div key={course.id} className="flex items-center gap-3 p-2 rounded-lg border">
                   <span className="text-2xl">{course.thumbnail}</span>

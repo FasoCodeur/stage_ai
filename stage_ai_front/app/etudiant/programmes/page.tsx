@@ -1,36 +1,24 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useAuth } from "@/lib/auth-context"
-import { PROGRAMS, PROGRAM_ENROLLMENTS, USERS, COURSES, LEVELS, type Program } from "@/lib/mock-data"
+import { type Program } from "@/lib/mock-data"
+import { useProgramStore } from "@/lib/stores/program-store"
+import { useUserStore } from "@/lib/stores/user-store"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
 import { Input } from "@/components/ui/input"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
   Calendar,
-  Clock,
   Users,
-  Sparkles,
   Search,
-  SlidersHorizontal,
-  BookOpen,
   LayoutGrid,
   List,
-  Star,
   Layers,
-  TrendingUp,
   X,
   UserCheck,
-  GraduationCap,
+  Loader2,
 } from "lucide-react"
 import Link from "next/link"
 
@@ -38,22 +26,23 @@ const ALL = "all"
 
 type ViewMode = "grid" | "list"
 
-function getLevelCount(program: Program) {
-  return LEVELS.filter((l) => l.programId === program.id).length
+function getLevelCount(program: Program, levels: { programId: string }[]) {
+  return levels.filter((l) => l.programId === program.id).length
 }
 
 function ProgramCard({
   p,
   viewMode,
+  levelCount,
+  mentorName,
+  enrolledStudents,
 }: {
   p: Program
   viewMode: ViewMode
+  levelCount: number
+  mentorName?: string
+  enrolledStudents: number
 }) {
-  const mentor = USERS.find((u) => u.id === p.mentorId)
-  const levelCount = getLevelCount(p)
-  const programEnrollments = PROGRAM_ENROLLMENTS.filter((e) => e.programId === p.id)
-  const enrolledStudents = programEnrollments.length
-
   if (viewMode === "list") {
     return (
       <Card className="overflow-hidden flex flex-col sm:flex-row relative">
@@ -78,7 +67,7 @@ function ProgramCard({
             <div className="flex items-center gap-1"><Calendar className="size-3" />{p.startDate} → {p.endDate}</div>
             <div className="flex items-center gap-1"><Layers className="size-3" />{levelCount} niveaux</div>
             <div className="flex items-center gap-1"><Users className="size-3" />{enrolledStudents} inscrits</div>
-            {mentor && <div className="flex items-center gap-1"><UserCheck className="size-3" />Mentor: {mentor.name}</div>}
+            {mentorName && <div className="flex items-center gap-1"><UserCheck className="size-3" />Mentor: {mentorName}</div>}
             <span className="font-semibold text-foreground ml-auto">{p.subscriptionPrice.toLocaleString("fr-FR")} FCFA<span className="text-[10px] font-normal text-muted-foreground">/mois</span></span>
           </div>
 
@@ -112,14 +101,14 @@ function ProgramCard({
 
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <div className="flex items-center gap-1"><Calendar className="size-3" />{p.startDate}</div>
-          <div className="flex items-center gap-1"><Layers className="size-3" />{LEVELS.filter(l => l.programId === p.id).length} niveaux</div>
+          <div className="flex items-center gap-1"><Layers className="size-3" />{levelCount} niveaux</div>
           <div className="flex items-center gap-1"><Users className="size-3" />{enrolledStudents} inscrits</div>
         </div>
 
-        {mentor && (
+        {mentorName && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 rounded-md px-2 py-1.5">
             <UserCheck className="size-3.5 text-primary" />
-            <span>Mentor: <strong>{mentor.name}</strong></span>
+            <span>Mentor: <strong>{mentorName}</strong></span>
           </div>
         )}
 
@@ -139,10 +128,19 @@ function ProgramCard({
 
 export default function ProgrammesPage() {
   const { user } = useAuth()
+  const { programs, levels, enrollments, isLoading, fetchPrograms } = useProgramStore()
+  const { users, fetchUsers } = useUserStore()
   const [search, setSearch] = useState("")
   const [viewMode, setViewMode] = useState<ViewMode>("grid")
 
-  const publishedPrograms = PROGRAMS.filter((p) => p.published)
+  useEffect(() => {
+    const load = async () => {
+      await Promise.all([fetchPrograms(), fetchUsers()])
+    }
+    load()
+  }, [fetchPrograms, fetchUsers])
+
+  const publishedPrograms = programs.filter((p) => p.published)
 
   const filteredPrograms = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -156,6 +154,18 @@ export default function ProgrammesPage() {
   }, [publishedPrograms, search])
 
   const hasFilters = search.trim() !== ""
+
+  const getMentorName = (mentorId: string) => users.find((u) => u.id === mentorId)?.name
+  const getEnrolledCount = (programId: string) => enrollments.filter((e) => e.programId === programId).length
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64 gap-2 text-muted-foreground">
+        <Loader2 className="size-5 animate-spin" />
+        Chargement des programmes...
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -241,6 +251,9 @@ export default function ProgrammesPage() {
               key={p.id}
               p={p}
               viewMode={viewMode}
+              levelCount={getLevelCount(p, levels)}
+              mentorName={getMentorName(p.mentorId)}
+              enrolledStudents={getEnrolledCount(p.id)}
             />
           ))}
         </div>

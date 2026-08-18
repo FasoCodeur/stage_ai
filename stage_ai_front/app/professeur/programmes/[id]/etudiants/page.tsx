@@ -1,9 +1,10 @@
 "use client"
 
-import { useParams } from "next/navigation"
+import { useEffect, useState } from "react"
+import { use } from "react"
 import { useAuth } from "@/lib/auth-context"
-import { PROGRAMS, PROGRAM_ENROLLMENTS, USERS, LEVELS } from "@/lib/mock-data"
 import { useProgramStore } from "@/lib/stores/program-store"
+import { useUserStore } from "@/lib/stores/user-store"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
@@ -12,24 +13,59 @@ import {
   ArrowLeft,
   Users,
   Layers,
-  Calendar,
   CheckCircle2,
   Circle,
   Lock,
   MessageSquare,
+  Loader2,
 } from "lucide-react"
 import Link from "next/link"
-import { useState } from "react"
 
-export default function ProgramStudentsPage() {
-  const { id } = useParams<{ id: string }>()
+export default function ProgramStudentsPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const { user } = useAuth()
+  const { programs, enrollments, levels, fetchPrograms, fetchLevelsByProgram, fetchEnrollmentsByProgram, updateMentorNotesApi } = useProgramStore()
+  const { users, fetchUsers } = useUserStore()
+  const [loading, setLoading] = useState(true)
+  const [savingNote, setSavingNote] = useState<string | null>(null)
 
-  const program = PROGRAMS.find((p) => p.id === id)
-  const levels = program ? LEVELS.filter((l) => l.programId === program.id).sort((a, b) => a.order - b.order) : []
-  const enrollments = program ? PROGRAM_ENROLLMENTS.filter((e) => e.programId === program.id) : []
+  useEffect(() => {
+    const load = async () => {
+      try {
+        await Promise.all([
+          fetchPrograms(),
+          fetchUsers(),
+          fetchLevelsByProgram(id),
+          fetchEnrollmentsByProgram(id),
+        ])
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [id, fetchPrograms, fetchUsers, fetchLevelsByProgram, fetchEnrollmentsByProgram])
 
-  const [mentorNotes, setMentorNotes] = useState<Record<string, string>>({})
+  const program = programs.find((p) => p.id === id)
+  const programLevels = levels.filter((l) => l.programId === id).sort((a, b) => a.order - b.order)
+  const programEnrollments = enrollments.filter((e) => e.programId === id)
+
+  const saveNote = async (userId: string, note: string) => {
+    setSavingNote(userId)
+    try {
+      await updateMentorNotesApi(id, userId, note)
+    } finally {
+      setSavingNote(null)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64 gap-2 text-muted-foreground">
+        <Loader2 className="size-5 animate-spin" />
+        Chargement des étudiants...
+      </div>
+    )
+  }
 
   if (!program || !user) {
     return (
@@ -40,10 +76,6 @@ export default function ProgramStudentsPage() {
         </Link>
       </div>
     )
-  }
-
-  const updateNote = (userId: string, note: string) => {
-    setMentorNotes((prev) => ({ ...prev, [userId]: note }))
   }
 
   return (
@@ -59,11 +91,11 @@ export default function ProgramStudentsPage() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Étudiants — {program.title}</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {enrollments.length} étudiant{enrollments.length > 1 ? "s" : ""} inscrit{enrollments.length > 1 ? "s" : ""}
+          {programEnrollments.length} étudiant{programEnrollments.length > 1 ? "s" : ""} inscrit{programEnrollments.length > 1 ? "s" : ""}
         </p>
       </div>
 
-      {enrollments.length === 0 ? (
+      {programEnrollments.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 py-16 text-center border rounded-xl bg-muted/20">
           <div className="size-12 rounded-full bg-muted flex items-center justify-center">
             <Users className="size-6 text-muted-foreground" />
@@ -77,9 +109,9 @@ export default function ProgramStudentsPage() {
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          {enrollments.map((enrollment) => {
-            const student = USERS.find((u) => u.id === enrollment.userId)
-            const currentLevel = levels[enrollment.currentLevelIndex]
+          {programEnrollments.map((enrollment) => {
+            const student = users.find((u) => u.id === enrollment.userId)
+            const currentLevel = programLevels[enrollment.currentLevelIndex]
             const statusLabel = enrollment.status === "active" ? "Actif" : enrollment.status === "completed" ? "Terminé" : "Expiré"
             const statusColor = enrollment.status === "active" ? "bg-green-100 text-green-700" : enrollment.status === "completed" ? "bg-blue-100 text-blue-700" : "bg-red-100 text-red-700"
 
@@ -112,7 +144,7 @@ export default function ProgramStudentsPage() {
                       </div>
                       <Progress value={enrollment.progress} className="h-1.5" />
                       <p className="text-xs text-muted-foreground">
-                        {enrollment.completedLevels.length}/{levels.length} niveaux
+                        {enrollment.completedLevels.length}/{programLevels.length} niveaux
                       </p>
                     </div>
                   </div>
@@ -121,7 +153,7 @@ export default function ProgramStudentsPage() {
                   <div className="mt-3 flex flex-col gap-1.5">
                     <p className="text-xs font-medium text-muted-foreground">Niveaux</p>
                     <div className="flex flex-wrap gap-1.5">
-                      {levels.map((level, index) => {
+                      {programLevels.map((level, index) => {
                         const isCompleted = enrollment.completedLevels.includes(level.id)
                         const isCurrent = index === enrollment.currentLevelIndex
                         const isLocked = !isCompleted && !isCurrent && index > enrollment.currentLevelIndex
@@ -156,13 +188,14 @@ export default function ProgramStudentsPage() {
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                       <MessageSquare className="size-3" />
                       <span>Note du mentor</span>
+                      {savingNote === enrollment.userId && <Loader2 className="size-3 animate-spin" />}
                     </div>
                     <textarea
                       className="w-full text-xs rounded-md border border-input bg-background px-2 py-1.5 resize-none"
                       rows={2}
                       placeholder="Ajouter une note sur cet étudiant..."
-                      value={mentorNotes[enrollment.userId] ?? enrollment.mentorNotes ?? ""}
-                      onChange={(e) => updateNote(enrollment.userId, e.target.value)}
+                      defaultValue={enrollment.mentorNotes ?? ""}
+                      onBlur={(e) => saveNote(enrollment.userId, e.target.value)}
                     />
                   </div>
                 </CardContent>

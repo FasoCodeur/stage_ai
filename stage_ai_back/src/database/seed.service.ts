@@ -2,7 +2,7 @@ import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import { UserEntity } from './entities/user.entity';
 import { CourseEntity } from './entities/course.entity';
 import { EnrollmentEntity } from './entities/enrollment.entity';
@@ -96,24 +96,42 @@ export class SeedService implements OnModuleInit {
         professorId: userIds.u2, published: true, thumbnail: '🌐',
         students: [userIds.u3, userIds.u4, userIds.u5],
         createdAt: '2024-01-15',
-        modules: [
-          { id: 'm1', title: 'Fondamentaux HTML', lessons: [
-            { id: 'l1', title: "Structure d'une page HTML", type: 'texte', content: '## Structure HTML\n\nUne page HTML est composée déléments imbriqués.', duration: 15 },
-            { id: 'l2', title: 'Les balises essentielles', type: 'video', content: 'Découvrez les balises HTML.', videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ', duration: 20 },
-            { id: 'l3', title: 'Quiz HTML', type: 'quiz', content: 'Testez vos connaissances.', duration: 10, quiz: [
-              { id: 'q1', question: 'Quel élément HTML définit le titre ?', options: ['<title>', '<head>', '<h1>', '<meta>'], correctIndex: 0 },
-              { id: 'q2', question: 'Quelle balise crée un lien ?', options: ['<link>', '<a>', '<href>', '<url>'], correctIndex: 1 },
+      modules: [
+        { id: 'm1', title: 'Fondamentaux HTML', lessons: [
+          { id: 'l1', title: "Structure d'une page HTML", duration: 15, blocks: [
+            { id: 'b1', type: 'texte', content: '## Structure HTML\n\nUne page HTML est composée déléments imbriqués.' },
+          ]},
+          { id: 'l2', title: 'Les balises essentielles', duration: 20, blocks: [
+            { id: 'b2', type: 'video', content: 'Découvrez les balises HTML.', videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ' },
+            { id: 'b3', type: 'texte', content: '## Les balises essentielles\n\nLes balises HTML sont les éléments de base de toute page web.' },
+          ]},
+          { id: 'l3', title: 'Quiz HTML', duration: 10, blocks: [
+            { id: 'b4', type: 'texte', content: 'Testez vos connaissances.' },
+            { id: 'b5', type: 'quiz', quiz: [
+              { id: 'q1', question: 'Quel élément HTML définit le titre ?', options: ['<title>', '<head>', '<h1>', '<meta>'], correctIndexes: [0] },
+              { id: 'q2', question: 'Quelle balise crée un lien ?', options: ['<link>', '<a>', '<href>', '<url>'], correctIndexes: [1] },
             ]},
           ]},
-          { id: 'm2', title: 'CSS Moderne', lessons: [
-            { id: 'l4', title: 'Introduction au CSS', type: 'texte', content: '## CSS — Cascading Style Sheets', duration: 15 },
-            { id: 'l5', title: 'Exercice : Créer un bouton CSS', type: 'sandbox', content: 'Créez un bouton stylé.', sandboxCode: '<button class="btn">Cliquez-moi</button>\n\n<style>.btn { background-color: #3b3fb8; color: white; padding: 10px 20px; border-radius: 6px; }</style>', duration: 20 },
+        ]},
+        { id: 'm2', title: 'CSS Moderne', lessons: [
+          { id: 'l4', title: 'Introduction au CSS', duration: 15, blocks: [
+            { id: 'b6', type: 'texte', content: '## CSS — Cascading Style Sheets' },
           ]},
-          { id: 'm3', title: 'JavaScript Essentiel', lessons: [
-            { id: 'l6', title: 'Variables et types', type: 'texte', content: '## Variables en JavaScript', duration: 15 },
-            { id: 'l7', title: 'Sandbox JS', type: 'sandbox', content: 'Pratiquez JavaScript.', sandboxCode: 'function saluer(nom) { return `Bonjour, ${nom} !`; }\nconsole.log(saluer("Ibrahima"));', duration: 25 },
+          { id: 'l5', title: 'Exercice : Créer un bouton CSS', duration: 20, blocks: [
+            { id: 'b7', type: 'texte', content: 'Créez un bouton stylé.' },
+            { id: 'b8', type: 'sandbox', language: 'html', sandboxCode: '<button class="btn">Cliquez-moi</button>\n\n<style>.btn { background-color: #3b3fb8; color: white; padding: 10px 20px; border-radius: 6px; }</style>' },
           ]},
-        ],
+        ]},
+        { id: 'm3', title: 'JavaScript Essentiel', lessons: [
+          { id: 'l6', title: 'Variables et types', duration: 15, blocks: [
+            { id: 'b9', type: 'texte', content: '## Variables en JavaScript' },
+          ]},
+          { id: 'l7', title: 'Sandbox JS', duration: 25, blocks: [
+            { id: 'b10', type: 'texte', content: 'Pratiquez JavaScript.' },
+            { id: 'b11', type: 'sandbox', language: 'javascript', sandboxCode: 'function saluer(nom) { return `Bonjour, ${nom} !`; }\nconsole.log(saluer("Ibrahima"));' },
+          ]},
+        ]},
+      ],
       },
       {
         title: 'Python pour la Data Science',
@@ -122,17 +140,24 @@ export class SeedService implements OnModuleInit {
         professorId: userIds.u2, published: true, thumbnail: '📊',
         students: [userIds.u3, userIds.u6],
         createdAt: '2024-02-10',
-        modules: [
-          { id: 'm4', title: 'Python Fondamentaux', lessons: [
-            { id: 'l8', title: 'Introduction à Python', type: 'texte', content: '## Python', duration: 20 },
-            { id: 'l9', title: 'Quiz Python', type: 'quiz', content: 'Testez vos bases.', duration: 10, quiz: [
-              { id: 'q4', question: 'Comment afficher du texte ?', options: ['echo()', 'print()', 'console.log()', 'display()'], correctIndex: 1 },
+      modules: [
+        { id: 'm4', title: 'Python Fondamentaux', lessons: [
+          { id: 'l8', title: 'Introduction à Python', duration: 20, blocks: [
+            { id: 'b12', type: 'texte', content: '## Python' },
+          ]},
+          { id: 'l9', title: 'Quiz Python', duration: 10, blocks: [
+            { id: 'b13', type: 'texte', content: 'Testez vos bases.' },
+            { id: 'b14', type: 'quiz', quiz: [
+              { id: 'q4', question: 'Comment afficher du texte ?', options: ['echo()', 'print()', 'console.log()', 'display()'], correctIndexes: [1] },
             ]},
           ]},
-          { id: 'm5', title: 'Pandas & Analyse', lessons: [
-            { id: 'l10', title: 'Introduction à Pandas', type: 'texte', content: '## Pandas', duration: 25 },
+        ]},
+        { id: 'm5', title: 'Pandas & Analyse', lessons: [
+          { id: 'l10', title: 'Introduction à Pandas', duration: 25, blocks: [
+            { id: 'b15', type: 'texte', content: '## Pandas' },
           ]},
-        ],
+        ]},
+      ],
       },
       {
         title: 'UI/UX Design Pratique',
@@ -141,11 +166,13 @@ export class SeedService implements OnModuleInit {
         professorId: userIds.u2, published: false, thumbnail: '🎨',
         students: [],
         createdAt: '2024-03-05',
-        modules: [
-          { id: 'm6', title: 'Principes du Design', lessons: [
-            { id: 'l11', title: 'Les 4 principes', type: 'texte', content: '## CRAP : Contraste, Répétition, Alignement, Proximité', duration: 20 },
+      modules: [
+        { id: 'm6', title: 'Principes du Design', lessons: [
+          { id: 'l11', title: 'Les 4 principes', duration: 20, blocks: [
+            { id: 'b16', type: 'texte', content: '## CRAP : Contraste, Répétition, Alignement, Proximité' },
           ]},
-        ],
+        ]},
+      ],
       },
       {
         title: 'Intelligence Artificielle & Machine Learning',
@@ -154,11 +181,13 @@ export class SeedService implements OnModuleInit {
         professorId: userIds.u2, published: true, thumbnail: '🤖',
         students: [userIds.u5],
         createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        modules: [
-          { id: 'm7', title: 'Fondements du ML', lessons: [
-            { id: 'l12', title: "Qu'est-ce que le ML ?", type: 'texte', content: '## Machine Learning', duration: 30 },
+      modules: [
+        { id: 'm7', title: 'Fondements du ML', lessons: [
+          { id: 'l12', title: "Qu'est-ce que le ML ?", duration: 30, blocks: [
+            { id: 'b17', type: 'texte', content: '## Machine Learning' },
           ]},
-        ],
+        ]},
+      ],
       },
     ];
     const savedCourses = await this.courseRepo.save(coursesData);

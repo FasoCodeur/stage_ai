@@ -1,10 +1,15 @@
 "use client"
 
-import { useParams } from "next/navigation"
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { use } from "react"
 import { useAuth } from "@/lib/auth-context"
-import { PROGRAMS, PROGRAM_ENROLLMENTS, USERS, LEVELS, COURSES, ENROLLMENTS, SUBSCRIPTIONS, PURCHASES } from "@/lib/mock-data"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useProgramStore } from "@/lib/stores/program-store"
+import { useUserStore } from "@/lib/stores/user-store"
+import { useCourseStore } from "@/lib/stores/course-store"
+import { useEnrollmentStore } from "@/lib/stores/enrollment-store"
+import { useSubscriptionStore } from "@/lib/stores/subscription-store"
+import { usePurchaseStore } from "@/lib/stores/purchase-store"
+import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
@@ -18,6 +23,7 @@ import {
   CreditCard,
   BookOpen,
   LogIn,
+  Loader2,
 } from "lucide-react"
 import Link from "next/link"
 import {
@@ -27,15 +33,50 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 
-export default function AdminProgramStudentsPage() {
-  const params = useParams()
-  const id = params.id as string
+export default function AdminProgramStudentsPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const { user } = useAuth()
+  const { programs, enrollments, levels, fetchPrograms, fetchLevelsByProgram, fetchEnrollmentsByProgram } = useProgramStore()
+  const { users, fetchUsers } = useUserStore()
+  const { courses, fetchCourses } = useCourseStore()
+  const { enrollments: courseEnrollments, fetchAllEnrollments } = useEnrollmentStore()
+  const { subscriptions, fetchAllSubscriptions } = useSubscriptionStore()
+  const { purchases, fetchAllPurchases } = usePurchaseStore()
+  const [loading, setLoading] = useState(true)
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null)
 
-  const program = PROGRAMS.find((p) => p.id === id)
-  const levels = program ? LEVELS.filter((l) => l.programId === program.id).sort((a, b) => a.order - b.order) : []
-  const enrollments = program ? PROGRAM_ENROLLMENTS.filter((e) => e.programId === program.id) : []
+  useEffect(() => {
+    const load = async () => {
+      try {
+        await Promise.all([
+          fetchPrograms(),
+          fetchUsers(),
+          fetchCourses(),
+          fetchLevelsByProgram(id),
+          fetchEnrollmentsByProgram(id),
+          fetchAllEnrollments(),
+          fetchAllSubscriptions(),
+          fetchAllPurchases(),
+        ])
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [id, fetchPrograms, fetchUsers, fetchCourses, fetchLevelsByProgram, fetchEnrollmentsByProgram, fetchAllEnrollments, fetchAllSubscriptions, fetchAllPurchases])
+
+  const program = programs.find((p) => p.id === id)
+  const programLevels = levels.filter((l) => l.programId === id).sort((a, b) => a.order - b.order)
+  const programEnrollments = enrollments.filter((e) => e.programId === id)
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64 gap-2 text-muted-foreground">
+        <Loader2 className="size-5 animate-spin" />
+        Chargement des étudiants...
+      </div>
+    )
+  }
 
   if (!program || !user) {
     return (
@@ -49,15 +90,15 @@ export default function AdminProgramStudentsPage() {
   }
 
   const getPurchaseType = (userId: string): { label: string; color: string } => {
-    const hasSub = SUBSCRIPTIONS.find((s) => s.userId === userId && s.status === "active")
+    const hasSub = subscriptions.find((s) => s.userId === userId && s.status === "active")
     if (hasSub) return { label: "Abonnement", color: "bg-blue-100 text-blue-700 border-blue-200" }
-    const hasPurchases = PURCHASES.some((p) => p.userId === userId)
+    const hasPurchases = purchases.some((p) => p.userId === userId)
     if (hasPurchases) return { label: "Achat direct", color: "bg-green-100 text-green-700 border-green-200" }
     return { label: "Programme", color: "bg-purple-100 text-purple-700 border-purple-200" }
   }
 
   const getRemainingDays = (userId: string): number | null => {
-    const sub = SUBSCRIPTIONS.find((s) => s.userId === userId && s.status === "active")
+    const sub = subscriptions.find((s) => s.userId === userId && s.status === "active")
     if (!sub) return null
     const end = new Date(sub.endDate)
     const now = new Date()
@@ -65,11 +106,11 @@ export default function AdminProgramStudentsPage() {
   }
 
   const getStudentCourses = (userId: string) => {
-    const courseEnrollments = ENROLLMENTS.filter((e) => e.userId === userId)
-    const programCompletedCourses = PROGRAM_ENROLLMENTS.filter((e) => e.userId === userId)
+    const studentEnrollments = courseEnrollments.filter((e) => e.userId === userId)
+    const programCompletedCourses = enrollments.filter((e) => e.userId === userId)
       .flatMap((e) => e.completedCourses)
-    const allCourseIds = [...new Set([...courseEnrollments.map((e) => e.courseId), ...programCompletedCourses])]
-    return COURSES.filter((c) => allCourseIds.includes(c.id))
+    const allCourseIds = [...new Set([...studentEnrollments.map((e) => e.courseId), ...programCompletedCourses])]
+    return courses.filter((c) => allCourseIds.includes(c.id))
   }
 
   return (
@@ -85,11 +126,11 @@ export default function AdminProgramStudentsPage() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Étudiants — {program.title}</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {enrollments.length} étudiant{enrollments.length > 1 ? "s" : ""} inscrit{enrollments.length > 1 ? "s" : ""}
+          {programEnrollments.length} étudiant{programEnrollments.length > 1 ? "s" : ""} inscrit{programEnrollments.length > 1 ? "s" : ""}
         </p>
       </div>
 
-      {enrollments.length === 0 ? (
+      {programEnrollments.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 py-16 text-center border rounded-xl bg-muted/20">
           <div className="size-12 rounded-full bg-muted flex items-center justify-center">
             <Users className="size-6 text-muted-foreground" />
@@ -100,8 +141,8 @@ export default function AdminProgramStudentsPage() {
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          {enrollments.map((enrollment) => {
-            const student = USERS.find((u) => u.id === enrollment.userId)
+          {programEnrollments.map((enrollment) => {
+            const student = users.find((u) => u.id === enrollment.userId)
             if (!student) return null
             const purchaseType = getPurchaseType(student.id)
             const remainingDays = getRemainingDays(student.id)
@@ -155,7 +196,7 @@ export default function AdminProgramStudentsPage() {
                       <p className="text-sm font-semibold text-foreground">{enrollment.progress}%</p>
                       <Progress value={enrollment.progress} className="h-1.5 mt-1" />
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {enrollment.completedLevels.length}/{levels.length} niveaux
+                        {enrollment.completedLevels.length}/{programLevels.length} niveaux
                       </p>
                       <button
                         onClick={() => setSelectedStudent(student.id)}
@@ -168,7 +209,7 @@ export default function AdminProgramStudentsPage() {
 
                   {/* Level badges */}
                   <div className="mt-3 flex flex-wrap gap-1.5">
-                    {levels.map((level, index) => {
+                    {programLevels.map((level, index) => {
                       const isCompleted = enrollment.completedLevels.includes(level.id)
                       const isCurrent = index === enrollment.currentLevelIndex
                       const isLocked = !isCompleted && !isCurrent && index > enrollment.currentLevelIndex
@@ -198,14 +239,14 @@ export default function AdminProgramStudentsPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              Cours suivis — {USERS.find((u) => u.id === selectedStudent)?.name || ""}
+              Cours suivis — {users.find((u) => u.id === selectedStudent)?.name || ""}
             </DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-2 max-h-80 overflow-y-auto">
             {selectedStudent && getStudentCourses(selectedStudent).length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">Aucun cours suivi pour le moment.</p>
             ) : selectedStudent && getStudentCourses(selectedStudent).map((course) => {
-              const courseEnrollment = ENROLLMENTS.find((e) => e.userId === selectedStudent && e.courseId === course.id)
+              const courseEnrollment = courseEnrollments.find((e) => e.userId === selectedStudent && e.courseId === course.id)
               return (
                 <div key={course.id} className="flex items-center gap-3 p-2 rounded-lg border">
                   <span className="text-2xl">{course.thumbnail}</span>

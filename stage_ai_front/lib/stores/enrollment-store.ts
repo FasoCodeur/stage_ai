@@ -1,5 +1,6 @@
 import { create } from "zustand"
-import { ENROLLMENTS, type Enrollment } from "@/lib/mock-data"
+import { type Enrollment } from "@/lib/mock-data"
+import { apiFetch } from "@/lib/api"
 
 interface EnrollmentState {
   enrollments: Enrollment[]
@@ -14,6 +15,13 @@ interface EnrollmentState {
   setSelectedEnrollment: (enrollment: Enrollment | null) => void
   setLoading: (loading: boolean) => void
 
+  // Actions API
+  fetchAllEnrollments: () => Promise<void>
+  fetchEnrollmentsByUser: (userId: string) => Promise<void>
+  createEnrollment: (userId: string, courseId: string) => Promise<Enrollment>
+  updateProgressApi: (userId: string, courseId: string, progress: number, completedLessons: string[]) => Promise<Enrollment>
+  deleteEnrollmentApi: (userId: string, courseId: string) => Promise<void>
+
   getEnrollmentsByUser: (userId: string) => Enrollment[]
   getEnrollmentsByCourse: (courseId: string) => Enrollment[]
   getEnrollment: (userId: string, courseId: string) => Enrollment | undefined
@@ -21,7 +29,7 @@ interface EnrollmentState {
 }
 
 export const useEnrollmentStore = create<EnrollmentState>()((set, get) => ({
-  enrollments: ENROLLMENTS,
+  enrollments: [],
   selectedEnrollment: null,
   isLoading: false,
 
@@ -60,6 +68,64 @@ export const useEnrollmentStore = create<EnrollmentState>()((set, get) => ({
 
   setSelectedEnrollment: (selectedEnrollment) => set({ selectedEnrollment }),
   setLoading: (isLoading) => set({ isLoading }),
+
+  // ── Actions API ──
+  fetchAllEnrollments: async () => {
+    set({ isLoading: true })
+    try {
+      const data = await apiFetch<Enrollment[]>("/enrollments")
+      set({ enrollments: data, isLoading: false })
+    } catch (e) {
+      set({ isLoading: false })
+      throw e
+    }
+  },
+
+  fetchEnrollmentsByUser: async (userId) => {
+    set({ isLoading: true })
+    try {
+      const data = await apiFetch<Enrollment[]>(`/enrollments/user/${userId}`)
+      set({ enrollments: data, isLoading: false })
+    } catch (e) {
+      set({ isLoading: false })
+      throw e
+    }
+  },
+
+  createEnrollment: async (userId, courseId) => {
+    const data = await apiFetch<Enrollment>("/enrollments", {
+      method: "POST",
+      body: JSON.stringify({ userId, courseId }),
+    })
+    set((state) => ({
+      enrollments: [...state.enrollments, data],
+    }))
+    return data
+  },
+
+  updateProgressApi: async (userId, courseId, progress, completedLessons) => {
+    const data = await apiFetch<Enrollment>(`/enrollments/${userId}/${courseId}/progress`, {
+      method: "PUT",
+      body: JSON.stringify({ progress, completedLessons }),
+    })
+    set((state) => ({
+      enrollments: state.enrollments.map((e) =>
+        e.userId === userId && e.courseId === courseId ? data : e
+      ),
+    }))
+    return data
+  },
+
+  deleteEnrollmentApi: async (userId, courseId) => {
+    await apiFetch<void>(`/enrollments/${userId}/${courseId}`, {
+      method: "DELETE",
+    })
+    set((state) => ({
+      enrollments: state.enrollments.filter(
+        (e) => !(e.userId === userId && e.courseId === courseId)
+      ),
+    }))
+  },
 
   getEnrollmentsByUser: (userId) => get().enrollments.filter((e) => e.userId === userId),
 

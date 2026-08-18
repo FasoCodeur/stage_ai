@@ -3,9 +3,11 @@
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { Course } from "@/lib/mock-data"
+import { useCourseStore } from "@/lib/stores/course-store"
 import { CourseEditor } from "@/components/course-editor"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Loader2 } from "lucide-react"
 import Link from "next/link"
+import { useState } from "react"
 
 function generateId() {
   return Math.random().toString(36).slice(2, 10)
@@ -14,6 +16,9 @@ function generateId() {
 export default function NewCoursePage() {
   const { user } = useAuth()
   const router = useRouter()
+  const { createCourse } = useCourseStore()
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
 
   const emptyCourse: Course = {
     id: generateId(),
@@ -31,9 +36,16 @@ export default function NewCoursePage() {
     createdAt: new Date().toISOString().split("T")[0],
   }
 
-  const handleSave = (course: Course) => {
-    // In a real app, this would call an API. For now, just redirect.
-    router.push("/professeur/cours")
+  const handleSave = async (course: Course) => {
+    setSaving(true)
+    setError("")
+    try {
+      await createCourse(course)
+      router.push("/professeur/cours")
+    } catch (err: any) {
+      setError(err.message || "Erreur lors de la création du cours")
+      setSaving(false)
+    }
   }
 
   return (
@@ -45,7 +57,19 @@ export default function NewCoursePage() {
         <ArrowLeft className="size-3.5" />
         Retour aux cours
       </Link>
-      <CourseEditor initial={emptyCourse} onSave={handleSave} />
+      {error && (
+        <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-4 py-2 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+      {saving ? (
+        <div className="flex items-center justify-center h-64 gap-2 text-muted-foreground">
+          <Loader2 className="size-5 animate-spin" />
+          Création du cours en cours...
+        </div>
+      ) : (
+        <CourseEditor initial={emptyCourse} onSave={handleSave} />
+      )}
     </div>
   )
 }

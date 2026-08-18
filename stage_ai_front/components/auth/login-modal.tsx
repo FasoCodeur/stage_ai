@@ -9,9 +9,10 @@ interface Props {
   open: boolean
   onClose: () => void
   onSwitchToInscription: () => void
+  onForgotPassword: () => void
 }
 
-export function LoginModal({ open, onClose, onSwitchToInscription }: Props) {
+export function LoginModal({ open, onClose, onSwitchToInscription, onForgotPassword }: Props) {
   const { login } = useAuth()
   const router = useRouter()
 
@@ -21,11 +22,11 @@ export function LoginModal({ open, onClose, onSwitchToInscription }: Props) {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
     setLoading(true)
-    const result = login(email, password)
+    const result = await login(email, password)
     setLoading(false)
     if (result.success) {
       onClose()
@@ -53,7 +54,7 @@ export function LoginModal({ open, onClose, onSwitchToInscription }: Props) {
 
         <div className="flex flex-col gap-1">
           <h2 className="text-xl font-bold text-white">Connexion</h2>
-          <p className="text-sm text-white/50">Accédez à votre espace d&apos;apprentissage</p>
+          <p className="text-sm text-white/50">Accédez à votre espace d'apprentissage</p>
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -95,6 +96,16 @@ export function LoginModal({ open, onClose, onSwitchToInscription }: Props) {
             </p>
           )}
 
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={onForgotPassword}
+              className="text-xs text-primary hover:text-primary/80 font-medium transition-colors"
+            >
+              Mot de passe oublié ?
+            </button>
+          </div>
+
           <button
             type="submit"
             disabled={loading}
@@ -109,9 +120,9 @@ export function LoginModal({ open, onClose, onSwitchToInscription }: Props) {
           <p className="text-xs text-white/40 mb-3">Comptes de démonstration</p>
           <div className="flex flex-col gap-2">
             {[
-              { label: "Admin", email: "admin@stageia.com", password: "admin123" },
-              { label: "Professeur", email: "prof@stageia.com", password: "prof123" },
-              { label: "Etudiant", email: "etudiant@stageia.com", password: "etudiant123" },
+              { label: "Admin", email: "admin@stageia.com", password: "12345678" },
+              { label: "Professeur", email: "prof@stageia.com", password: "12345678" },
+              { label: "Etudiant", email: "etudiant@stageia.com", password: "12345678" },
             ].map((acc) => (
               <button
                 key={acc.email}
@@ -135,7 +146,7 @@ export function LoginModal({ open, onClose, onSwitchToInscription }: Props) {
             onClick={onSwitchToInscription}
             className="text-primary hover:text-primary/80 font-medium transition-colors"
           >
-            S&apos;inscrire
+            S'inscrire
           </button>
         </p>
       </div>

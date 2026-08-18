@@ -1,6 +1,10 @@
 "use client"
 
-import { USERS, COURSES, ENROLLMENTS, STAGE_REQUESTS } from "@/lib/mock-data"
+import { useEffect, useState } from "react"
+import { useUserStore } from "@/lib/stores/user-store"
+import { useCourseStore } from "@/lib/stores/course-store"
+import { useEnrollmentStore } from "@/lib/stores/enrollment-store"
+import { useStageRequestStore } from "@/lib/stores/stage-request-store"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -14,59 +18,58 @@ import {
   CheckCircle2,
   Clock,
   XCircle,
+  Loader2,
 } from "lucide-react"
 
-const students = USERS.filter((u) => u.role === "etudiant")
-const publishedCourses = COURSES.filter((c) => c.published)
-const pendingStages = STAGE_REQUESTS.filter((s) => s.status === "en_attente")
-
-const STAT_CARDS = [
-  {
-    label: "Etudiants inscrits",
-    value: students.length,
-    sub: "+2 ce mois",
-    icon: GraduationCap,
-    color: "text-primary",
-    bg: "bg-primary/10",
-  },
-  {
-    label: "Cours publiés",
-    value: publishedCourses.length,
-    sub: `${COURSES.length} au total`,
-    icon: BookOpen,
-    color: "text-chart-2",
-    bg: "bg-chart-2/10",
-  },
-  {
-    label: "Stages en attente",
-    value: pendingStages.length,
-    sub: "À valider",
-    icon: Briefcase,
-    color: "text-warning",
-    bg: "bg-warning/10",
-  },
-  {
-    label: "Inscriptions totales",
-    value: ENROLLMENTS.length,
-    sub: "Toutes formations",
-    icon: TrendingUp,
-    color: "text-chart-3",
-    bg: "bg-chart-3/10",
-  },
-]
-
-const statusMap = {
-  validé: { label: "Validé", variant: "default" as const, icon: CheckCircle2, color: "text-chart-3" },
-  en_attente: { label: "En attente", variant: "secondary" as const, icon: Clock, color: "text-warning" },
-  refusé: { label: "Refusé", variant: "destructive" as const, icon: XCircle, color: "text-destructive" },
+const statusMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive"; icon: any; color: string }> = {
+  validé: { label: "Validé", variant: "default", icon: CheckCircle2, color: "text-chart-3" },
+  en_attente: { label: "En attente", variant: "secondary", icon: Clock, color: "text-warning" },
+  refusé: { label: "Refusé", variant: "destructive", icon: XCircle, color: "text-destructive" },
 }
 
 export default function AdminPage() {
+  const { users, fetchUsers } = useUserStore()
+  const { courses, fetchCourses } = useCourseStore()
+  const { enrollments, fetchAllEnrollments } = useEnrollmentStore()
+  const { stageRequests, fetchStageRequests } = useStageRequestStore()
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        await Promise.all([fetchUsers(), fetchCourses(), fetchAllEnrollments(), fetchStageRequests()])
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [fetchUsers, fetchCourses, fetchAllEnrollments, fetchStageRequests])
+
+  const students = users.filter((u) => u.role === "etudiant")
+  const publishedCourses = courses.filter((c) => c.published)
+  const pendingStages = stageRequests.filter((s) => s.status === "en_attente")
+
+  const STAT_CARDS = [
+    { label: "Etudiants inscrits", value: students.length, sub: "sur la plateforme", icon: GraduationCap, color: "text-primary", bg: "bg-primary/10" },
+    { label: "Cours publiés", value: publishedCourses.length, sub: `${courses.length} au total`, icon: BookOpen, color: "text-chart-2", bg: "bg-chart-2/10" },
+    { label: "Stages en attente", value: pendingStages.length, sub: "À valider", icon: Briefcase, color: "text-warning", bg: "bg-warning/10" },
+    { label: "Inscriptions totales", value: enrollments.length, sub: "Toutes formations", icon: TrendingUp, color: "text-chart-3", bg: "bg-chart-3/10" },
+  ]
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64 gap-2 text-muted-foreground">
+        <Loader2 className="size-5 animate-spin" />
+        Chargement du tableau de bord...
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Tableau de bord</h1>
-        <p className="text-sm text-muted-foreground mt-1">Vue d&apos;ensemble de la plateforme StageIA</p>
+        <p className="text-sm text-muted-foreground mt-1">Vue d'ensemble de la plateforme StageIA</p>
       </div>
 
       {/* Stats */}
@@ -99,7 +102,7 @@ export default function AdminPage() {
           <CardContent>
             <div className="flex flex-col gap-3">
               {students.map((s) => {
-                const myEnrollments = ENROLLMENTS.filter((e) => e.userId === s.id)
+                const myEnrollments = enrollments.filter((e) => e.userId === s.id)
                 const avgProgress =
                   myEnrollments.length > 0
                     ? Math.round(myEnrollments.reduce((a, e) => a + e.progress, 0) / myEnrollments.length)
@@ -142,8 +145,9 @@ export default function AdminPage() {
           </CardHeader>
           <CardContent>
             <div className="flex flex-col gap-3">
-              {STAGE_REQUESTS.map((req) => {
-                const s = statusMap[req.status]
+              {stageRequests.map((req) => {
+                const s = statusMap[req.status] ?? statusMap.en_attente
+                const Icon = s.icon
                 return (
                   <div key={req.id} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
                     <div className="size-9 rounded-lg bg-background border flex items-center justify-center shrink-0">
@@ -153,7 +157,10 @@ export default function AdminPage() {
                       <p className="text-sm font-medium text-foreground truncate">{req.title}</p>
                       <p className="text-xs text-muted-foreground">{req.companyName} · {req.duration}</p>
                     </div>
-                    <Badge variant={s.variant} className="text-xs shrink-0">{s.label}</Badge>
+                    <Badge variant={s.variant} className="text-xs shrink-0">
+                      <Icon className="size-3 mr-1" />
+                      {s.label}
+                    </Badge>
                   </div>
                 )
               })}
@@ -170,14 +177,14 @@ export default function AdminPage() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-3">
-            {COURSES.map((c) => (
+            {courses.map((c) => (
               <div key={c.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
                 <div className="size-10 rounded-lg bg-background border flex items-center justify-center text-xl shrink-0">
                   {c.thumbnail}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground truncate">{c.title}</p>
-                  <p className="text-xs text-muted-foreground">{c.category} · {c.duration}h · {c.students.length} étudiant{c.students.length > 1 ? "s" : ""}</p>
+                  <p className="text-xs text-muted-foreground">{c.category} · {c.duration}h · {(c.students?.length || 0)} étudiant{(c.students?.length || 0) > 1 ? "s" : ""}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <Badge variant="outline" className="text-xs">{c.level}</Badge>

@@ -1,12 +1,12 @@
 "use client"
 
-import { useState } from "react"
-import { STAGE_REQUESTS, StageRequest } from "@/lib/mock-data"
+import { useEffect, useState } from "react"
+import { useStageRequestStore } from "@/lib/stores/stage-request-store"
+import { StageRequest } from "@/lib/mock-data"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { CheckCircle2, XCircle, Clock } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { CheckCircle2, XCircle, Clock, Loader2 } from "lucide-react"
 
 type Status = StageRequest["status"]
 const STATUS_MAP: Record<Status, { label: string; variant: "default" | "secondary" | "destructive" }> = {
@@ -16,10 +16,30 @@ const STATUS_MAP: Record<Status, { label: string; variant: "default" | "secondar
 }
 
 export default function AdminStagesPage() {
-  const [requests, setRequests] = useState(STAGE_REQUESTS)
+  const { stageRequests, isLoading, fetchStageRequests, updateStageRequestStatusApi } = useStageRequestStore()
+  const [updating, setUpdating] = useState<string | null>(null)
 
-  const updateStatus = (id: string, status: Status) =>
-    setRequests((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)))
+  useEffect(() => {
+    fetchStageRequests().catch(() => {})
+  }, [fetchStageRequests])
+
+  const updateStatus = async (id: string, status: Status) => {
+    setUpdating(id)
+    try {
+      await updateStageRequestStatusApi(id, status)
+    } finally {
+      setUpdating(null)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64 gap-2 text-muted-foreground">
+        <Loader2 className="size-5 animate-spin" />
+        Chargement des stages...
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -29,7 +49,7 @@ export default function AdminStagesPage() {
       </div>
 
       <div className="flex flex-col gap-3">
-        {requests.map((req) => {
+        {stageRequests.map((req) => {
           const s = STATUS_MAP[req.status]
           return (
             <Card key={req.id}>
@@ -47,19 +67,19 @@ export default function AdminStagesPage() {
                     <Badge variant={s.variant}>{s.label}</Badge>
                     {req.status === "en_attente" && (
                       <div className="flex gap-1.5">
-                        <Button size="sm" variant="outline" onClick={() => updateStatus(req.id, "refusé")} className="h-7 text-xs text-destructive border-destructive/30">
-                          <XCircle />
+                        <Button size="sm" variant="outline" onClick={() => updateStatus(req.id, "refusé")} disabled={updating === req.id} className="h-7 text-xs text-destructive border-destructive/30">
+                          {updating === req.id ? <Loader2 className="size-3 animate-spin" /> : <XCircle />}
                           Refuser
                         </Button>
-                        <Button size="sm" onClick={() => updateStatus(req.id, "validé")} className="h-7 text-xs">
-                          <CheckCircle2 />
+                        <Button size="sm" onClick={() => updateStatus(req.id, "validé")} disabled={updating === req.id} className="h-7 text-xs">
+                          {updating === req.id ? <Loader2 className="size-3 animate-spin" /> : <CheckCircle2 />}
                           Valider
                         </Button>
                       </div>
                     )}
                     {req.status !== "en_attente" && (
-                      <Button size="sm" variant="ghost" onClick={() => updateStatus(req.id, "en_attente")} className="h-7 text-xs">
-                        <Clock />
+                      <Button size="sm" variant="ghost" onClick={() => updateStatus(req.id, "en_attente")} disabled={updating === req.id} className="h-7 text-xs">
+                        {updating === req.id ? <Loader2 className="size-3 animate-spin" /> : <Clock />}
                         Remettre en attente
                       </Button>
                     )}

@@ -1,21 +1,37 @@
 "use client"
 
+import { useEffect } from "react"
 import { useAuth } from "@/lib/auth-context"
-import { COURSES, ENROLLMENTS, USERS } from "@/lib/mock-data"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { useCourseStore } from "@/lib/stores/course-store"
+import { useEnrollmentStore } from "@/lib/stores/enrollment-store"
+import { useUserStore } from "@/lib/stores/user-store"
+import { Card, CardContent } from "@/components/ui/card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 
 export default function ProfEtudiantsPage() {
   const { user } = useAuth()
-  const myCourses = COURSES.filter((c) => c.professorId === user?.id)
-  const myEnrollments = ENROLLMENTS.filter((e) => myCourses.some((c) => c.id === e.courseId))
+  const { courses, fetchCoursesByProfessor } = useCourseStore()
+  const { enrollments, fetchAllEnrollments } = useEnrollmentStore()
+  const { users, fetchUsers } = useUserStore()
+
+  useEffect(() => {
+    const load = async () => {
+      if (user) {
+        await Promise.all([fetchCoursesByProfessor(user.id), fetchAllEnrollments(), fetchUsers()])
+      }
+    }
+    load()
+  }, [user, fetchCoursesByProfessor, fetchAllEnrollments, fetchUsers])
+
+  const myCourses = courses.filter((c) => c.professorId === user?.id)
+  const myEnrollments = enrollments.filter((e) => myCourses.some((c) => c.id === e.courseId))
 
   // Group by student
   const studentMap: Record<string, { name: string; avatar: string; enrollments: typeof myEnrollments }> = {}
   myEnrollments.forEach((e) => {
-    const s = USERS.find((u) => u.id === e.userId)
+    const s = users.find((u) => u.id === e.userId)
     if (!s) return
     if (!studentMap[s.id]) studentMap[s.id] = { name: s.name, avatar: s.avatar, enrollments: [] }
     studentMap[s.id].enrollments.push(e)

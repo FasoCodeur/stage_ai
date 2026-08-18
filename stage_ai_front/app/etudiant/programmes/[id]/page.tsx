@@ -1,8 +1,12 @@
 "use client"
 
-import { useParams } from "next/navigation"
+import { use, useEffect, useState } from "react"
 import { useAuth } from "@/lib/auth-context"
-import { PROGRAMS, PROGRAM_ENROLLMENTS, USERS, COURSES, LEVELS, type Program, type Level } from "@/lib/mock-data"
+import { type Program, type Level, type Course } from "@/lib/mock-data"
+import { useProgramStore } from "@/lib/stores/program-store"
+import { useUserStore } from "@/lib/stores/user-store"
+import { useCourseStore } from "@/lib/stores/course-store"
+import { useSubscriptionStore } from "@/lib/stores/subscription-store"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
@@ -19,22 +23,71 @@ import {
   Lock,
   Circle,
   Phone,
-  Trophy,
+  Loader2,
   AlertTriangle,
 } from "lucide-react"
 import Link from "next/link"
 
-export default function ProgramDetailPage() {
-  const { id } = useParams<{ id: string }>()
+export default function ProgramDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const { user } = useAuth()
+  const { programs, enrollments, levels, fetchPrograms, fetchLevelsByProgram, fetchEnrollmentsByUser, enrollStudentApi } = useProgramStore()
+  const { users, fetchUsers } = useUserStore()
+  const { courses, fetchCourses } = useCourseStore()
+  const { createSubscription } = useSubscriptionStore()
+  const [loading, setLoading] = useState(true)
+  const [subscribing, setSubscribing] = useState(false)
+  const [error, setError] = useState("")
 
-  const program = PROGRAMS.find((p) => p.id === id)
-  const mentor = program ? USERS.find((u) => u.id === program.mentorId) : null
-  const levels = program ? LEVELS.filter((l) => l.programId === program.id).sort((a, b) => a.order - b.order) : []
-  const enrollment = program && user ? PROGRAM_ENROLLMENTS.find((e) => e.userId === user.id && e.programId === program.id) : null
+  useEffect(() => {
+    const load = async () => {
+      try {
+        await Promise.all([
+          fetchPrograms(),
+          fetchUsers(),
+          fetchCourses(),
+          id ? fetchLevelsByProgram(id) : Promise.resolve(),
+          user ? fetchEnrollmentsByUser(user.id) : Promise.resolve(),
+        ])
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [id, user, fetchPrograms, fetchUsers, fetchCourses, fetchLevelsByProgram, fetchEnrollmentsByUser])
+
+  const program = programs.find((p) => p.id === id)
+  const mentor = program ? users.find((u) => u.id === program.mentorId) : undefined
+  const programLevels = levels.filter((l) => l.programId === id).sort((a, b) => a.order - b.order)
+  const enrollment = program && user
+    ? enrollments.find((e) => e.userId === user.id && e.programId === program.id)
+    : undefined
   const isEnrolled = !!enrollment
   const isExpired = program ? new Date() > new Date(program.endDate) : false
   const isNotStarted = program ? new Date() < new Date(program.startDate) : false
+
+  const handleSubscribe = async () => {
+    if (!user) return
+    setSubscribing(true)
+    setError("")
+    try {
+      await createSubscription(user.id, "mensuel")
+      await enrollStudentApi(id, user.id)
+    } catch (err: any) {
+      setError(err.message || "Erreur lors de l'abonnement")
+    } finally {
+      setSubscribing(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64 gap-2 text-muted-foreground">
+        <Loader2 className="size-5 animate-spin" />
+        Chargement du programme...
+      </div>
+    )
+  }
 
   if (!program) {
     return (
@@ -50,6 +103,8 @@ export default function ProgramDetailPage() {
       </div>
     )
   }
+
+  const courseById = (cid: string): Course | undefined => courses.find((c) => c.id === cid)
 
   return (
     <div className="flex flex-col gap-6 max-w-4xl mx-auto">
@@ -88,11 +143,11 @@ export default function ProgramDetailPage() {
             </div>
             <div className="flex items-center gap-1.5">
               <Layers className="size-4" />
-              <span>{levels.length} niveaux</span>
+              <span>{programLevels.length} niveaux</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Users className="size-4" />
-              <span>{program.students.length} inscrits</span>
+              <span>{program.students?.length || 0} inscrits</span>
             </div>
             <div className="font-semibold text-foreground text-lg">
               {program.subscriptionPrice.toLocaleString("fr-FR")} FCFA<span className="text-xs font-normal text-muted-foreground">/mois</span>
@@ -125,7 +180,7 @@ export default function ProgramDetailPage() {
             </div>
           )}
 
-          {isEnrolled && (
+          {isEnrolled && enrollment && (
             <div className="flex flex-col gap-1 max-w-sm">
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>Progression globale</span>
@@ -133,7 +188,7 @@ export default function ProgramDetailPage() {
               </div>
               <Progress value={enrollment.progress} className="h-2" />
               <p className="text-xs text-muted-foreground">
-                {enrollment.completedLevels.length}/{levels.length} niveaux complétés
+                {enrollment.completedLevels.length}/{programLevels.length} niveaux complétés
                 {enrollment.status === "completed" && " — 🎉 Programme terminé !"}
                 {enrollment.status === "expired" && " — ⏰ Programme expiré"}
               </p>
@@ -151,17 +206,17 @@ export default function ProgramDetailPage() {
       {/* Levels avec progression */}
       <div>
         <h2 className="text-lg font-semibold text-foreground mb-3">Niveaux du programme</h2>
-        {levels.length === 0 ? (
+        {programLevels.length === 0 ? (
           <div className="text-sm text-muted-foreground py-4 text-center border rounded-lg bg-muted/20">
             Aucun niveau défini pour ce programme pour le moment.
           </div>
         ) : (
           <div className="flex flex-col gap-3">
-            {levels.map((level, index) => {
-              const isCurrentLevel = isEnrolled && enrollment.currentLevelIndex === index
-              const isLevelCompleted = isEnrolled && enrollment.completedLevels.includes(level.id)
-              const isLevelLocked = !isEnrolled || (!isLevelCompleted && !isCurrentLevel && index > enrollment.currentLevelIndex)
-              const levelCourses = level.courses.map((cid) => COURSES.find((c) => c.id === cid)).filter(Boolean)
+            {programLevels.map((level: Level, index: number) => {
+              const isCurrentLevel = isEnrolled && enrollment?.currentLevelIndex === index
+              const isLevelCompleted = isEnrolled && enrollment?.completedLevels.includes(level.id)
+              const isLevelLocked = !isEnrolled || (!isLevelCompleted && !isCurrentLevel && index > (enrollment?.currentLevelIndex ?? -1))
+              const levelCourses = level.courses.map((cid) => courseById(cid)).filter(Boolean) as Course[]
 
               return (
                 <Card
@@ -218,7 +273,6 @@ export default function ProgramDetailPage() {
                         {levelCourses.length > 0 && (
                           <div className="mt-3 flex flex-col gap-1.5">
                             {levelCourses.map((course) => {
-                              if (!course) return null
                               const isCourseCompleted = enrollment?.completedCourses.includes(course.id)
                               return (
                                 <div
@@ -255,7 +309,7 @@ export default function ProgramDetailPage() {
                   </CardContent>
 
                   {/* Connection line */}
-                  {index < levels.length - 1 && (
+                  {index < programLevels.length - 1 && (
                     <div className="absolute left-[23px] top-[52px] bottom-0 w-0.5 bg-muted-foreground/20" />
                   )}
                 </Card>
@@ -267,16 +321,21 @@ export default function ProgramDetailPage() {
 
       {/* Enroll CTA */}
       {!isEnrolled && program.published && !isExpired && !isNotStarted && (
-        <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/20">
+        <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/20 flex-col sm:flex-row gap-3">
           <div>
             <p className="text-sm font-semibold text-foreground">Intéressé par ce programme ?</p>
             <p className="text-xs text-muted-foreground">
               Abonnez-vous pour accéder à tous les niveaux et bénéficier du suivi personnalisé de votre mentor.
             </p>
+            {error && <p className="text-xs text-destructive mt-1">{error}</p>}
           </div>
-          <button className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors">
-            <Phone className="size-3.5" />
-            S'abonner — {program.subscriptionPrice.toLocaleString("fr-FR")} FCFA/mois
+          <button
+            onClick={handleSubscribe}
+            disabled={subscribing}
+            className="inline-flex items-center justify-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors shrink-0"
+          >
+            {subscribing ? <Loader2 className="size-3.5 animate-spin" /> : <Phone className="size-3.5" />}
+            {subscribing ? "Abonnement..." : `S'abonner — ${program.subscriptionPrice.toLocaleString("fr-FR")} FCFA/mois`}
           </button>
         </div>
       )}

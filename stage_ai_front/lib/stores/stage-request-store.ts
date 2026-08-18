@@ -1,5 +1,6 @@
 import { create } from "zustand"
-import { STAGE_REQUESTS, type StageRequest } from "@/lib/mock-data"
+import { type StageRequest } from "@/lib/mock-data"
+import { apiFetch } from "@/lib/api"
 
 type StageStatus = "en_attente" | "validé" | "refusé"
 
@@ -22,6 +23,12 @@ interface StageRequestState {
   setSelectedStageRequest: (request: StageRequest | null) => void
   setLoading: (loading: boolean) => void
 
+  // Actions API
+  fetchStageRequests: () => Promise<void>
+  createStageRequest: (data: Partial<StageRequest>) => Promise<StageRequest>
+  updateStageRequestStatusApi: (id: string, status: StageStatus) => Promise<StageRequest>
+  deleteStageRequestApi: (id: string) => Promise<void>
+
   getFilteredRequests: () => StageRequest[]
   getRequestById: (id: string) => StageRequest | undefined
   getRequestsByStudent: (studentId: string) => StageRequest[]
@@ -29,7 +36,7 @@ interface StageRequestState {
 }
 
 export const useStageRequestStore = create<StageRequestState>()((set, get) => ({
-  stageRequests: STAGE_REQUESTS,
+  stageRequests: [],
   filters: {},
   selectedStageRequest: null,
   isLoading: false,
@@ -65,6 +72,47 @@ export const useStageRequestStore = create<StageRequestState>()((set, get) => ({
 
   setSelectedStageRequest: (selectedStageRequest) => set({ selectedStageRequest }),
   setLoading: (isLoading) => set({ isLoading }),
+
+  // ── Actions API ──
+  fetchStageRequests: async () => {
+    set({ isLoading: true })
+    try {
+      const data = await apiFetch<StageRequest[]>("/stage-requests")
+      set({ stageRequests: data, isLoading: false })
+    } catch (e) {
+      set({ isLoading: false })
+      throw e
+    }
+  },
+
+  createStageRequest: async (data) => {
+    const request = await apiFetch<StageRequest>("/stage-requests", {
+      method: "POST",
+      body: JSON.stringify(data),
+    })
+    set((state) => ({ stageRequests: [...state.stageRequests, request] }))
+    return request
+  },
+
+  updateStageRequestStatusApi: async (id, status) => {
+    const request = await apiFetch<StageRequest>(`/stage-requests/${id}/status`, {
+      method: "PUT",
+      body: JSON.stringify({ status }),
+    })
+    set((state) => ({
+      stageRequests: state.stageRequests.map((r) => (r.id === id ? request : r)),
+    }))
+    return request
+  },
+
+  deleteStageRequestApi: async (id) => {
+    await apiFetch<void>(`/stage-requests/${id}`, {
+      method: "DELETE",
+    })
+    set((state) => ({
+      stageRequests: state.stageRequests.filter((r) => r.id !== id),
+    }))
+  },
 
   getFilteredRequests: () => {
     const { stageRequests, filters } = get()

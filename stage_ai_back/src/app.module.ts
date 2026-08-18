@@ -11,6 +11,7 @@ import { PurchasesModule } from './purchases/purchases.module';
 import { StageRequestsModule } from './stage-requests/stage-requests.module';
 import { AuthModule } from './auth/auth.module';
 import { ProgramsModule } from './programs/programs.module';
+import { SandboxModule } from './sandbox/sandbox.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { ProgramsModule } from './programs/programs.module';
     StageRequestsModule,
     AuthModule,
     ProgramsModule,
+    SandboxModule,
   ],
   controllers: [AppController],
   providers: [AppService],

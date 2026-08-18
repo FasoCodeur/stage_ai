@@ -1,44 +1,73 @@
 "use client"
 
-import { useState } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { use, useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
-import { PROGRAMS, USERS } from "@/lib/mock-data"
 import { useProgramStore } from "@/lib/stores/program-store"
+import { useUserStore } from "@/lib/stores/user-store"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { buttonVariants } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft, Save, Eye, EyeOff } from "lucide-react"
+import { ArrowLeft, Save, Eye, EyeOff, Loader2 } from "lucide-react"
 import Link from "next/link"
 
-export default function AdminModifierProgrammePage() {
-  const { id } = useParams<{ id: string }>()
+export default function AdminModifierProgrammePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const { user } = useAuth()
   const router = useRouter()
-  const { updateProgram } = useProgramStore()
+  const { fetchProgramById, updateProgramApi } = useProgramStore()
+  const { users, fetchUsers } = useUserStore()
 
-  const program = PROGRAMS.find((p) => p.id === id)
-
-  const [title, setTitle] = useState(program?.title || "")
-  const [description, setDescription] = useState(program?.description || "")
-  const [thumbnail, setThumbnail] = useState(program?.thumbnail || "🚀")
-  const [duration, setDuration] = useState(program?.duration || 3)
-  const [subscriptionPrice, setSubscriptionPrice] = useState(program?.subscriptionPrice || 15000)
-  const [mentorId, setMentorId] = useState(program?.mentorId || "")
-  const [startDate, setStartDate] = useState(program?.startDate || "")
-  const [endDate, setEndDate] = useState(program?.endDate || "")
-  const [published, setPublished] = useState(program?.published || false)
+  const [title, setTitle] = useState("")
+  const [description, setDescription] = useState("")
+  const [thumbnail, setThumbnail] = useState("")
+  const [duration, setDuration] = useState(3)
+  const [subscriptionPrice, setSubscriptionPrice] = useState(15000)
+  const [mentorId, setMentorId] = useState("")
+  const [startDate, setStartDate] = useState("")
+  const [endDate, setEndDate] = useState("")
+  const [published, setPublished] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [notFound, setNotFound] = useState(false)
 
-  const professors = [
-    { id: "u2", name: "Fatou Ndiaye" },
-    { id: "u1", name: "Amadou Diallo" },
-  ]
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [program] = await Promise.all([fetchProgramById(id), fetchUsers()])
+        setTitle(program.title || "")
+        setDescription(program.description || "")
+        setThumbnail(program.thumbnail || "")
+        setDuration(program.duration || 3)
+        setSubscriptionPrice(program.subscriptionPrice || 15000)
+        setMentorId(program.mentorId || "")
+        setStartDate(program.startDate || "")
+        setEndDate(program.endDate || "")
+        setPublished(program.published || false)
+      } catch {
+        setNotFound(true)
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [id, fetchProgramById, fetchUsers])
 
-  if (!program) {
+  const professors = users.filter((u) => u.role === "professeur")
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64 gap-2 text-muted-foreground">
+        <Loader2 className="size-5 animate-spin" />
+        Chargement du programme...
+      </div>
+    )
+  }
+
+  if (notFound) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20">
         <p className="text-sm font-medium text-foreground">Programme non trouvé</p>
@@ -49,10 +78,10 @@ export default function AdminModifierProgrammePage() {
     )
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
-    updateProgram(program.id, {
+    await updateProgramApi(id, {
       title,
       description,
       thumbnail,
@@ -63,15 +92,14 @@ export default function AdminModifierProgrammePage() {
       startDate,
       endDate,
     })
-    router.push(`/admin/programmes/${program.id}`)
+    setSaving(false)
+    router.push(`/admin/programmes/${id}`)
   }
-
-  const emojis = ["🚀", "🤖", "🎨", "📊", "💻", "🌐", "📱", "🔒", "🧠", "🎯", "⚡", "🔥"]
 
   return (
     <div className="flex flex-col gap-6 max-w-2xl mx-auto">
       <Link
-        href={`/admin/programmes/${program.id}`}
+        href={`/admin/programmes/${id}`}
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors w-fit"
       >
         <ArrowLeft className="size-3.5" />
@@ -85,20 +113,18 @@ export default function AdminModifierProgrammePage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div>
-              <Label>Icône du programme</Label>
-              <div className="flex gap-2 mt-1.5 flex-wrap">
-                {emojis.map((emoji) => (
-                  <button
-                    key={emoji}
-                    type="button"
-                    onClick={() => setThumbnail(emoji)}
-                    className={`size-10 rounded-lg border flex items-center justify-center text-xl transition-all ${
-                      thumbnail === emoji ? "border-primary bg-primary/10 ring-1 ring-primary" : "border-border hover:bg-muted"
-                    }`}
-                  >
-                    {emoji}
-                  </button>
-                ))}
+              <Label htmlFor="thumbnail">Image / Icône du programme</Label>
+              <div className="flex items-center gap-3 mt-1.5">
+                <div className="size-12 rounded-lg bg-primary/5 border flex items-center justify-center text-2xl shrink-0">
+                  {thumbnail || "?"}
+                </div>
+                <Input
+                  id="thumbnail"
+                  value={thumbnail}
+                  onChange={(e) => setThumbnail(e.target.value)}
+                  placeholder="Titre court, symbole ou URL d'image"
+                  className="flex-1"
+                />
               </div>
             </div>
 
@@ -158,10 +184,10 @@ export default function AdminModifierProgrammePage() {
 
             <div className="flex gap-3 pt-2">
               <button type="submit" disabled={saving} className={buttonVariants({ className: "flex-1" })}>
-                <Save className="size-3.5" />
+                {saving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
                 {saving ? "Enregistrement..." : "Enregistrer"}
               </button>
-              <Link href={`/admin/programmes/${program.id}`} className={buttonVariants({ variant: "outline", className: "flex-1" })}>
+              <Link href={`/admin/programmes/${id}`} className={buttonVariants({ variant: "outline", className: "flex-1" })}>
                 Annuler
               </Link>
             </div>

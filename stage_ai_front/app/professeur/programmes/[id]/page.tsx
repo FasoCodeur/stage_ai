@@ -1,10 +1,12 @@
 "use client"
 
-import { useParams, useRouter } from "next/navigation"
+import { use, useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
-import { PROGRAMS, PROGRAM_ENROLLMENTS, USERS, LEVELS, COURSES } from "@/lib/mock-data"
 import { useProgramStore } from "@/lib/stores/program-store"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useUserStore } from "@/lib/stores/user-store"
+import { useCourseStore } from "@/lib/stores/course-store"
+import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
@@ -15,28 +17,54 @@ import {
   Layers,
   UserCheck,
   BookOpen,
-  Clock,
   Edit,
   Eye,
   EyeOff,
   Trash2,
-  CheckCircle2,
-  Lock,
-  Circle,
-  PlusCircle,
+  Loader2,
 } from "lucide-react"
 import Link from "next/link"
 
-export default function ProfessorProgramDetailPage() {
-  const { id } = useParams<{ id: string }>()
+export default function ProfessorProgramDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const { user } = useAuth()
   const router = useRouter()
-  const { publishProgram, deleteProgram } = useProgramStore()
+  const { programs, enrollments, levels, fetchPrograms, fetchLevelsByProgram, fetchEnrollmentsByProgram, updateProgramApi, deleteProgramApi } = useProgramStore()
+  const { users, fetchUsers } = useUserStore()
+  const { courses, fetchCourses } = useCourseStore()
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
 
-  const program = PROGRAMS.find((p) => p.id === id)
-  const mentor = program ? USERS.find((u) => u.id === program.mentorId) : null
-  const levels = program ? LEVELS.filter((l) => l.programId === program.id).sort((a, b) => a.order - b.order) : []
-  const enrollments = program ? PROGRAM_ENROLLMENTS.filter((e) => e.programId === program.id) : []
+  useEffect(() => {
+    const load = async () => {
+      try {
+        await Promise.all([
+          fetchPrograms(),
+          fetchUsers(),
+          fetchCourses(),
+          fetchLevelsByProgram(id),
+          fetchEnrollmentsByProgram(id),
+        ])
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [id, fetchPrograms, fetchUsers, fetchCourses, fetchLevelsByProgram, fetchEnrollmentsByProgram])
+
+  const program = programs.find((p) => p.id === id)
+  const mentor = program ? users.find((u) => u.id === program.mentorId) : undefined
+  const programLevels = levels.filter((l) => l.programId === id).sort((a, b) => a.order - b.order)
+  const programEnrollments = enrollments.filter((e) => e.programId === id)
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64 gap-2 text-muted-foreground">
+        <Loader2 className="size-5 animate-spin" />
+        Chargement du programme...
+      </div>
+    )
+  }
 
   if (!program || !user) {
     return (
@@ -49,18 +77,23 @@ export default function ProfessorProgramDetailPage() {
     )
   }
 
-  const avgProgress = enrollments.length > 0
-    ? Math.round(enrollments.reduce((acc, e) => acc + e.progress, 0) / enrollments.length)
+  const courseById = (cid: string) => courses.find((c) => c.id === cid)
+  const avgProgress = programEnrollments.length > 0
+    ? Math.round(programEnrollments.reduce((acc, e) => acc + e.progress, 0) / programEnrollments.length)
     : 0
 
-  const handleTogglePublish = () => {
-    publishProgram(program.id, !program.published)
-    router.refresh()
+  const handleTogglePublish = async () => {
+    setSaving(true)
+    try {
+      await updateProgramApi(program.id, { published: !program.published })
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (confirm("Supprimer ce programme ? Cette action est irréversible.")) {
-      deleteProgram(program.id)
+      await deleteProgramApi(program.id)
       router.push("/professeur/programmes")
     }
   }
@@ -95,8 +128,8 @@ export default function ProfessorProgramDetailPage() {
 
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
             <span className="flex items-center gap-1.5"><Calendar className="size-4" />{program.duration} mois</span>
-            <span className="flex items-center gap-1.5"><Layers className="size-4" />{levels.length} niveaux</span>
-            <span className="flex items-center gap-1.5"><Users className="size-4" />{enrollments.length} inscrits</span>
+            <span className="flex items-center gap-1.5"><Layers className="size-4" />{programLevels.length} niveaux</span>
+            <span className="flex items-center gap-1.5"><Users className="size-4" />{programEnrollments.length} inscrits</span>
             <span className="font-semibold text-foreground">{program.subscriptionPrice.toLocaleString("fr-FR")} FCFA/mois</span>
           </div>
 
@@ -107,7 +140,7 @@ export default function ProfessorProgramDetailPage() {
             </div>
           )}
 
-          {enrollments.length > 0 && (
+          {programEnrollments.length > 0 && (
             <div className="max-w-xs">
               <div className="flex justify-between text-xs text-muted-foreground mb-0.5">
                 <span>Progression moyenne</span>
@@ -124,12 +157,12 @@ export default function ProfessorProgramDetailPage() {
         <Link href={`/professeur/programmes/${program.id}/modifier`} className={buttonVariants({ size: "sm", variant: "outline" })}>
           <Edit className="size-3" /> Modifier
         </Link>
-        <button onClick={handleTogglePublish} className={buttonVariants({ size: "sm", variant: "outline" })}>
-          {program.published ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
-          {program.published ? "Dépublier" : "Publier"}
+        <button onClick={handleTogglePublish} disabled={saving} className={buttonVariants({ size: "sm", variant: "outline" })}>
+          {saving ? <Loader2 className="size-3 animate-spin" /> : program.published ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
+          {saving ? "..." : program.published ? "Dépublier" : "Publier"}
         </button>
         <Link href={`/professeur/programmes/${program.id}/etudiants`} className={buttonVariants({ size: "sm", variant: "outline" })}>
-          <Users className="size-3" /> Étudiants ({enrollments.length})
+          <Users className="size-3" /> Étudiants ({programEnrollments.length})
         </Link>
         <button onClick={handleDelete} className={buttonVariants({ size: "sm", variant: "outline", className: "text-destructive" })}>
           <Trash2 className="size-3" /> Supprimer
@@ -140,17 +173,17 @@ export default function ProfessorProgramDetailPage() {
       <div>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold text-foreground">Niveaux</h2>
-          <span className="text-xs text-muted-foreground">{levels.length} niveau{levels.length > 1 ? "x" : ""}</span>
+          <span className="text-xs text-muted-foreground">{programLevels.length} niveau{programLevels.length > 1 ? "x" : ""}</span>
         </div>
 
-        {levels.length === 0 ? (
+        {programLevels.length === 0 ? (
           <div className="text-sm text-muted-foreground py-8 text-center border rounded-lg bg-muted/20">
             Aucun niveau défini. Ajoutez des niveaux pour structurer votre programme.
           </div>
         ) : (
           <div className="flex flex-col gap-3">
-            {levels.map((level, index) => {
-              const levelCourses = level.courses.map((cid) => COURSES.find((c) => c.id === cid)).filter(Boolean)
+            {programLevels.map((level) => {
+              const levelCourses = level.courses.map((cid) => courseById(cid)).filter(Boolean)
               return (
                 <Card key={level.id} className="overflow-hidden">
                   <CardContent className="p-4">
@@ -191,12 +224,12 @@ export default function ProfessorProgramDetailPage() {
       </div>
 
       {/* Recent enrollments */}
-      {enrollments.length > 0 && (
+      {programEnrollments.length > 0 && (
         <div>
-          <h2 className="text-lg font-semibold text-foreground mb-3">Étudiants inscrits ({enrollments.length})</h2>
+          <h2 className="text-lg font-semibold text-foreground mb-3">Étudiants inscrits ({programEnrollments.length})</h2>
           <div className="flex flex-col gap-2">
-            {enrollments.slice(0, 5).map((enrollment) => {
-              const student = USERS.find((u) => u.id === enrollment.userId)
+            {programEnrollments.slice(0, 5).map((enrollment) => {
+              const student = users.find((u) => u.id === enrollment.userId)
               return (
                 <div key={enrollment.userId} className="flex items-center gap-3 p-2 rounded-lg border bg-card">
                   <div className="size-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium">
@@ -208,17 +241,17 @@ export default function ProfessorProgramDetailPage() {
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-semibold text-foreground">{enrollment.progress}%</p>
-                    <p className="text-xs text-muted-foreground">{enrollment.completedLevels.length}/{levels.length} niveaux</p>
+                    <p className="text-xs text-muted-foreground">{enrollment.completedLevels.length}/{programLevels.length} niveaux</p>
                   </div>
                 </div>
               )
             })}
-            {enrollments.length > 5 && (
+            {programEnrollments.length > 5 && (
               <Link
                 href={`/professeur/programmes/${program.id}/etudiants`}
                 className="text-xs text-center text-primary hover:underline py-2"
               >
-                Voir tous les {enrollments.length} étudiants
+                Voir tous les {programEnrollments.length} étudiants
               </Link>
             )}
           </div>

@@ -1,9 +1,11 @@
 "use client"
 
-import { useState } from "react"
-import { COURSES, isCourseNew } from "@/lib/mock-data"
+import { useEffect, useState } from "react"
+import { isCourseNew } from "@/lib/mock-data"
+import { useCourseStore } from "@/lib/stores/course-store"
 import { LoginModal } from "@/components/auth/login-modal"
 import { InscriptionModal } from "@/components/auth/inscription-modal"
+import { ForgotPasswordModal } from "@/components/auth/forgot-password-modal"
 import { Clock, Users, Search, Star, Sparkles, ChevronRight, ArrowLeft, BookOpen } from "lucide-react"
 import Link from "next/link"
 
@@ -11,13 +13,19 @@ const CATEGORIES = ["Tous", "Développement Web", "Data Science", "IA & ML", "De
 const LEVELS = ["Tous niveaux", "Débutant", "Intermédiaire", "Avancé"]
 
 export default function FormationsPage() {
+  const { courses, fetchCourses } = useCourseStore()
   const [search, setSearch] = useState("")
   const [category, setCategory] = useState("Tous")
   const [level, setLevel] = useState("Tous niveaux")
   const [showLogin, setShowLogin] = useState(false)
   const [showInscription, setShowInscription] = useState(false)
+  const [showForgotPassword, setShowForgotPassword] = useState(false)
 
-  const published = COURSES.filter((c) => c.published)
+  useEffect(() => {
+    fetchCourses()
+  }, [fetchCourses])
+
+  const published = courses.filter((c) => c.published)
 
   const filtered = published.filter((c) => {
     const matchSearch =
@@ -171,7 +179,7 @@ export default function FormationsPage() {
 
                     <div className="flex items-center gap-3 text-[11px] text-white/40">
                       <span className="flex items-center gap-1"><Clock className="size-3" />{c.duration}h</span>
-                      <span className="flex items-center gap-1"><Users className="size-3" />{c.students.length} inscrits</span>
+                      <span className="flex items-center gap-1"><Users className="size-3" />{(c.students?.length || 0)} inscrits</span>
                       <span className="flex items-center gap-1"><Star className="size-3 fill-yellow-400 text-yellow-400" />4.8</span>
                     </div>
 
@@ -207,8 +215,18 @@ export default function FormationsPage() {
         </div>
       </div>
 
-      <LoginModal open={showLogin} onClose={() => setShowLogin(false)} onSwitchToInscription={() => { setShowLogin(false); setShowInscription(true) }} />
+      <LoginModal
+        open={showLogin}
+        onClose={() => setShowLogin(false)}
+        onSwitchToInscription={() => { setShowLogin(false); setShowInscription(true) }}
+        onForgotPassword={() => { setShowLogin(false); setShowForgotPassword(true) }}
+      />
       <InscriptionModal open={showInscription} onClose={() => setShowInscription(false)} onSwitchToLogin={() => { setShowInscription(false); setShowLogin(true) }} />
+      <ForgotPasswordModal
+        open={showForgotPassword}
+        onClose={() => setShowForgotPassword(false)}
+        onBackToLogin={() => { setShowForgotPassword(false); setShowLogin(true) }}
+      />
     </div>
   )
 }

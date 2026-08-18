@@ -1,12 +1,13 @@
 "use client"
 
-import { useState } from "react"
-import { STAGE_REQUESTS, StageRequest } from "@/lib/mock-data"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { useEffect, useState } from "react"
+import { useStageRequestStore } from "@/lib/stores/stage-request-store"
+import { StageRequest } from "@/lib/mock-data"
+import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { CheckCircle2, XCircle, Clock, Eye } from "lucide-react"
+import { CheckCircle2, XCircle, Clock, Eye, Loader2 } from "lucide-react"
 
 type Status = StageRequest["status"]
 
@@ -17,15 +18,34 @@ const statusMap: Record<Status, { label: string; variant: "default" | "secondary
 }
 
 export default function AdminDossiersPage() {
-  const [requests, setRequests] = useState(STAGE_REQUESTS)
+  const { stageRequests, isLoading, fetchStageRequests, updateStageRequestStatusApi } = useStageRequestStore()
   const [selected, setSelected] = useState<StageRequest | null>(null)
+  const [updating, setUpdating] = useState(false)
 
-  const updateStatus = (id: string, status: Status) => {
-    setRequests((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)))
-    setSelected(null)
+  useEffect(() => {
+    fetchStageRequests().catch(() => {})
+  }, [fetchStageRequests])
+
+  const updateStatus = async (id: string, status: Status) => {
+    setUpdating(true)
+    try {
+      await updateStageRequestStatusApi(id, status)
+      setSelected(null)
+    } finally {
+      setUpdating(false)
+    }
   }
 
-  const pending = requests.filter((r) => r.status === "en_attente")
+  const pending = stageRequests.filter((r) => r.status === "en_attente")
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64 gap-2 text-muted-foreground">
+        <Loader2 className="size-5 animate-spin" />
+        Chargement des dossiers...
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -37,7 +57,7 @@ export default function AdminDossiersPage() {
       </div>
 
       <div className="flex flex-col gap-3">
-        {requests.map((req) => {
+        {stageRequests.map((req) => {
           const s = statusMap[req.status]
           return (
             <Card key={req.id} className="overflow-hidden">
@@ -111,28 +131,31 @@ export default function AdminDossiersPage() {
                   variant="destructive"
                   size="sm"
                   onClick={() => updateStatus(selected.id, "refusé")}
+                  disabled={updating}
                   className="flex-1"
                 >
-                  <XCircle />
+                  {updating ? <Loader2 className="size-3 animate-spin" /> : <XCircle />}
                   Refuser
                 </Button>
                 <Button
                   size="sm"
                   onClick={() => updateStatus(selected.id, "validé")}
+                  disabled={updating}
                   className="flex-1"
                 >
-                  <CheckCircle2 />
+                  {updating ? <Loader2 className="size-3 animate-spin" /> : <CheckCircle2 />}
                   Valider
                 </Button>
               </>
             )}
-            {selected?.status !== "en_attente" && (
+            {selected?.status !== "en_attente" && selected && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => updateStatus(selected!.id, "en_attente")}
+                onClick={() => updateStatus(selected.id, "en_attente")}
+                disabled={updating}
               >
-                <Clock />
+                {updating ? <Loader2 className="size-3 animate-spin" /> : <Clock />}
                 Remettre en attente
               </Button>
             )}

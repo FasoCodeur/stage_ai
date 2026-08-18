@@ -1,11 +1,22 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react"
-import { User, USERS } from "./mock-data"
+import { apiFetch } from "./api"
+
+interface AuthUser {
+  id: string
+  name: string
+  email: string
+  role: "admin" | "professeur" | "etudiant"
+  avatar: string
+  phone?: string
+  ville?: string
+  niveau?: string
+}
 
 interface AuthContextType {
-  user: User | null
-  login: (email: string, password: string) => { success: boolean; role?: string; error?: string }
+  user: AuthUser | null
+  login: (email: string, password: string) => Promise<{ success: boolean; role?: string; error?: string }>
   logout: () => void
   isLoading: boolean
 }
@@ -13,7 +24,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<AuthUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -28,24 +39,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false)
   }, [])
 
-  const login = (email: string, password: string): { success: boolean; role?: string; error?: string } => {
-    const found = USERS.find(
-      (u) => u.email === email && u.password === password
-    )
-    if (found) {
-      if (found.suspended) {
-        return { success: false, error: "Votre compte a été suspendu. Veuillez contacter l'administrateur." }
-      }
+  const login = async (email: string, password: string): Promise<{ success: boolean; role?: string; error?: string }> => {
+    try {
+      const data = await apiFetch<{ user: AuthUser; token: string }>("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      })
+
+      const found = data.user
       setUser(found)
       localStorage.setItem("stageia_user", JSON.stringify(found))
+      localStorage.setItem("stageia_token", data.token)
       return { success: true, role: found.role }
+    } catch (err: any) {
+      return { success: false, error: err.message || "Email ou mot de passe incorrect." }
     }
-    return { success: false, error: "Email ou mot de passe incorrect." }
   }
 
   const logout = () => {
     setUser(null)
     localStorage.removeItem("stageia_user")
+    localStorage.removeItem("stageia_token")
     console.log("User logged out")
   }
 

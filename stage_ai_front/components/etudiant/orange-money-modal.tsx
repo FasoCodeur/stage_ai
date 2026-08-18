@@ -1,9 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import { Course, PURCHASES } from "@/lib/mock-data"
+import { Course } from "@/lib/mock-data"
 import { useAuth } from "@/lib/auth-context"
-import { X, Phone, Check, Clock } from "lucide-react"
+import { usePurchaseStore } from "@/lib/stores/purchase-store"
+import { useEnrollmentStore } from "@/lib/stores/enrollment-store"
+import { X, Phone, Check, Loader2 } from "lucide-react"
 
 interface Props {
   course: Course
@@ -15,18 +17,22 @@ type Step = "form" | "processing" | "success"
 
 export function OrangeMoneyModal({ course, open, onClose }: Props) {
   const { user } = useAuth()
+  const { createPurchase } = usePurchaseStore()
+  const { createEnrollment } = useEnrollmentStore()
   const [step, setStep] = useState<Step>("form")
   const [phone, setPhone] = useState("")
   const [phoneError, setPhoneError] = useState("")
+  const [error, setError] = useState("")
 
   const reset = () => {
     setStep("form")
     setPhone("")
     setPhoneError("")
+    setError("")
     onClose()
   }
 
-  const handlePay = (e: React.FormEvent) => {
+  const handlePay = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!phone.match(/^(\+?221|0)?7[5-8]\d{7}$/)) {
       setPhoneError("Numéro Orange Money invalide (ex: 77 000 00 00)")
@@ -34,18 +40,18 @@ export function OrangeMoneyModal({ course, open, onClose }: Props) {
     }
     setPhoneError("")
     setStep("processing")
-    setTimeout(() => {
-      // Simulate adding a purchase to mock data in-memory
+    try {
       if (user) {
-        PURCHASES.push({
-          userId: user.id,
-          courseId: course.id,
-          method: "orange_money",
-          purchasedAt: new Date().toISOString().split("T")[0],
-        })
+        // Enregistre l'achat côté backend
+        await createPurchase(user.id, course.id, "orange_money")
+        // Inscrit l'étudiant au cours
+        await createEnrollment(user.id, course.id)
       }
       setStep("success")
-    }, 2000)
+    } catch (err: any) {
+      setError(err.message || "Erreur lors du paiement")
+      setStep("form")
+    }
   }
 
   if (!open) return null
@@ -112,6 +118,12 @@ export function OrangeMoneyModal({ course, open, onClose }: Props) {
                   {phoneError && <p className="text-xs text-destructive">{phoneError}</p>}
                 </div>
 
+                {error && (
+                  <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-4 py-2 text-sm text-destructive">
+                    {error}
+                  </div>
+                )}
+
                 <div className="rounded-lg border bg-muted/20 p-3 flex flex-col gap-1.5 text-xs">
                   <div className="flex justify-between text-muted-foreground">
                     <span>Formation</span>
@@ -145,7 +157,7 @@ export function OrangeMoneyModal({ course, open, onClose }: Props) {
           {step === "processing" && (
             <div className="flex flex-col items-center gap-5 py-6 text-center">
               <div className="size-16 rounded-full border-2 border-orange-500/30 bg-orange-500/10 flex items-center justify-center">
-                <Clock className="size-7 text-orange-500 animate-pulse" />
+                <Loader2 className="size-7 text-orange-500 animate-spin" />
               </div>
               <div>
                 <p className="text-base font-bold text-foreground">Traitement en cours...</p>

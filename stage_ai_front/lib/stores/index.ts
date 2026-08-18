@@ -1,4 +1,3 @@
-export { useAuthStore } from "./auth-store"
 export { useUserStore } from "./user-store"
 export { useCourseStore } from "./course-store"
 export { useEnrollmentStore } from "./enrollment-store"

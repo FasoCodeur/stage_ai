@@ -1,8 +1,8 @@
 "use client"
 
-import { useMemo } from "react"
+import { useEffect, useMemo } from "react"
 import { useAuth } from "@/lib/auth-context"
-import { PROGRAMS, PROGRAM_ENROLLMENTS, USERS, LEVELS } from "@/lib/mock-data"
+import { useProgramStore } from "@/lib/stores/program-store"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
@@ -10,12 +10,8 @@ import { Progress } from "@/components/ui/progress"
 import {
   Calendar,
   Users,
-  BookOpen,
   Layers,
-  UserCheck,
   PlusCircle,
-  TrendingUp,
-  GraduationCap,
   Eye,
   Edit,
 } from "lucide-react"
@@ -23,16 +19,24 @@ import Link from "next/link"
 
 export default function ProfessorProgrammesPage() {
   const { user } = useAuth()
+  const { programs, enrollments, levels, fetchPrograms } = useProgramStore()
 
-  const myPrograms = PROGRAMS.filter((p) => p.mentorId === user?.id)
+  useEffect(() => {
+    fetchPrograms()
+  }, [fetchPrograms])
+
+  const myPrograms = programs.filter((p) => p.mentorId === user?.id)
 
   const totalStudents = useMemo(() => {
     const studentIds = new Set<string>()
-    myPrograms.forEach((p) => p.students.forEach((sid) => studentIds.add(sid)))
+    myPrograms.forEach((p) => (p.students || []).forEach((sid) => studentIds.add(sid)))
     return studentIds.size
   }, [myPrograms])
 
   if (!user) return null
+
+  const getEnrollments = (programId: string) => enrollments.filter((e) => e.programId === programId)
+  const getLevelCount = (programId: string) => levels.filter((l) => l.programId === programId).length
 
   return (
     <div className="flex flex-col gap-6">
@@ -74,9 +78,11 @@ export default function ProfessorProgrammesPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {myPrograms.map((program) => {
-            const enrollments = PROGRAM_ENROLLMENTS.filter((e) => e.programId === program.id)
-            const mentor = USERS.find((u) => u.id === program.mentorId)
-            const levelCount = LEVELS.filter((l) => l.programId === program.id).length
+            const programEnrollments = getEnrollments(program.id)
+            const levelCount = getLevelCount(program.id)
+            const avgProgress = programEnrollments.length > 0
+              ? Math.round(programEnrollments.reduce((acc, e) => acc + e.progress, 0) / programEnrollments.length)
+              : 0
 
             return (
               <Card key={program.id} className="flex flex-col overflow-hidden">
@@ -97,19 +103,17 @@ export default function ProfessorProgrammesPage() {
                   <div className="flex items-center gap-3 text-xs text-muted-foreground">
                     <div className="flex items-center gap-1"><Calendar className="size-3" />{program.duration} mois</div>
                     <div className="flex items-center gap-1"><Layers className="size-3" />{levelCount} niveaux</div>
-                    <div className="flex items-center gap-1"><Users className="size-3" />{enrollments.length} inscrits</div>
+                    <div className="flex items-center gap-1"><Users className="size-3" />{programEnrollments.length} inscrits</div>
                   </div>
 
-                  {enrollments.length > 0 && (
+                  {programEnrollments.length > 0 && (
                     <div className="flex flex-col gap-1">
                       <div className="flex justify-between text-xs text-muted-foreground">
                         <span>Progression moyenne</span>
-                        <span>
-                          {Math.round(enrollments.reduce((acc, e) => acc + e.progress, 0) / enrollments.length)}%
-                        </span>
+                        <span>{avgProgress}%</span>
                       </div>
                       <Progress
-                        value={Math.round(enrollments.reduce((acc, e) => acc + e.progress, 0) / enrollments.length)}
+                        value={avgProgress}
                         className="h-1.5"
                       />
                     </div>

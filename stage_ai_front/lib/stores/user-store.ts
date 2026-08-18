@@ -1,5 +1,6 @@
 import { create } from "zustand"
-import { USERS, type User } from "@/lib/mock-data"
+import { type User } from "@/lib/mock-data"
+import { apiFetch } from "@/lib/api"
 import { useAuditStore } from "./audit-store"
 
 interface UserFilters {
@@ -14,6 +15,9 @@ interface UserState {
   isLoading: boolean
 
   setUsers: (users: User[]) => void
+
+  // Actions API
+  fetchUsers: (role?: string) => Promise<void>
   addUser: (
     user: User,
     actor?: { id: string; name: string; role: string }
@@ -54,12 +58,24 @@ interface UserState {
 }
 
 export const useUserStore = create<UserState>()((set, get) => ({
-  users: USERS,
+  users: [],
   filters: {},
   selectedUser: null,
   isLoading: false,
 
   setUsers: (users) => set({ users }),
+
+  // ── Actions API ──
+  fetchUsers: async (role) => {
+    set({ isLoading: true })
+    try {
+      const data = await apiFetch<User[]>(role ? `/users/role/${role}` : "/users")
+      set({ users: data, isLoading: false })
+    } catch (e) {
+      set({ isLoading: false })
+      throw e
+    }
+  },
 
   addUser: (user, actor) => {
     set((state) => ({
@@ -145,11 +161,6 @@ export const useUserStore = create<UserState>()((set, get) => ({
     const fromProf = get().users.find((u) => u.id === fromProfessorId)
     const toProf = get().users.find((u) => u.id === toProfessorId)
     if (!fromProf || !toProf) return
-
-    // Update courses in the COURSES array (mock data)
-    const { COURSES } = require("@/lib/mock-data")
-    // In a real app, this would update the database
-    // For mock data, we update the store's programs and courses
 
     useAuditStore.getState().addLog({
       action: "update",

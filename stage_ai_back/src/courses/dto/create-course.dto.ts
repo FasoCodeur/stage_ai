@@ -17,27 +17,30 @@ class QuizQuestionDto {
   @IsString({ each: true })
   options: string[];
 
-  @ApiProperty({ example: 0 })
-  @IsNumber()
-  correctIndex: number;
+  @ApiProperty({ example: [0], description: 'Indices des bonnes réponses (une ou plusieurs)' })
+  @IsArray()
+  @IsNumber({}, { each: true })
+  correctIndexes: number[];
 }
 
-class LessonDto {
-  @ApiProperty({ example: 'l1' })
+class ContentBlockDto {
+  @ApiProperty({ example: 'b1' })
   @IsString()
   id: string;
-
-  @ApiProperty({ example: 'Structure d\'une page HTML' })
-  @IsString()
-  title: string;
 
   @ApiProperty({ enum: ['texte', 'video', 'quiz', 'sandbox'], example: 'texte' })
   @IsString()
   type: string;
 
-  @ApiProperty({ example: '## Structure HTML\n...' })
+  @ApiPropertyOptional({ example: 'html', description: 'Langage pour les blocs sandbox' })
+  @IsOptional()
   @IsString()
-  content: string;
+  language?: string;
+
+  @ApiPropertyOptional({ example: '## Structure HTML\n...' })
+  @IsOptional()
+  @IsString()
+  content?: string;
 
   @ApiPropertyOptional({ example: 'https://www.youtube.com/embed/...' })
   @IsOptional()
@@ -54,11 +57,26 @@ class LessonDto {
   @IsOptional()
   @IsString()
   sandboxCode?: string;
+}
+
+class LessonDto {
+  @ApiProperty({ example: 'l1' })
+  @IsString()
+  id: string;
+
+  @ApiProperty({ example: 'Structure d\'une page HTML' })
+  @IsString()
+  title: string;
 
   @ApiProperty({ example: 15, description: 'Durée en minutes' })
   @IsNumber()
   @Min(1)
   duration: number;
+
+  @ApiProperty({ type: [ContentBlockDto], description: 'Blocs de contenu (texte, vidéo, quiz, sandbox)' })
+  @ValidateNested({ each: true })
+  @Type(() => ContentBlockDto)
+  blocks: ContentBlockDto[];
 }
 
 class ModuleDto {

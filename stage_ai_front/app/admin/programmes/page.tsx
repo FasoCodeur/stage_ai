@@ -1,8 +1,8 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { useAuth } from "@/lib/auth-context"
-import { PROGRAMS, PROGRAM_ENROLLMENTS, USERS, LEVELS, COURSES } from "@/lib/mock-data"
+import { useEffect, useMemo, useState } from "react"
+import { useProgramStore } from "@/lib/stores/program-store"
+import { useUserStore } from "@/lib/stores/user-store"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
@@ -18,29 +18,42 @@ import {
 import {
   Calendar,
   Users,
-  BookOpen,
   Layers,
   Search,
   X,
   Eye,
   Edit,
-  Trash2,
   PlusCircle,
-  CheckCircle2,
-  XCircle,
+  Loader2,
 } from "lucide-react"
 import Link from "next/link"
 
 const ALL = "all"
 
 export default function AdminProgrammesPage() {
-  const { user } = useAuth()
+  const { programs, enrollments, levels, fetchPrograms, fetchLevelsByProgram, fetchEnrollmentsByProgram } = useProgramStore()
+  const { users, fetchUsers } = useUserStore()
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>(ALL)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        await Promise.all([fetchPrograms(), fetchUsers()])
+        // Charge niveaux et inscriptions pour chaque programme
+        await Promise.all(programs.map((p) => Promise.all([fetchLevelsByProgram(p.id), fetchEnrollmentsByProgram(p.id)])))
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchPrograms, fetchUsers])
 
   const filteredPrograms = useMemo(() => {
     const term = search.trim().toLowerCase()
-    return PROGRAMS.filter((p) => {
+    return programs.filter((p) => {
       const matchesSearch =
         !term ||
         p.title.toLowerCase().includes(term) ||
@@ -51,15 +64,24 @@ export default function AdminProgrammesPage() {
         (statusFilter === "draft" && !p.published)
       return matchesSearch && matchesStatus
     })
-  }, [search, statusFilter])
+  }, [programs, search, statusFilter])
 
   const totalStudents = useMemo(() => {
     const studentIds = new Set<string>()
-    PROGRAMS.forEach((p) => p.students.forEach((sid) => studentIds.add(sid)))
+    programs.forEach((p) => (p.students || []).forEach((sid) => studentIds.add(sid)))
     return studentIds.size
-  }, [])
+  }, [programs])
 
   const hasFilters = search.trim() || statusFilter !== ALL
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64 gap-2 text-muted-foreground">
+        <Loader2 className="size-5 animate-spin" />
+        Chargement des programmes...
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -67,7 +89,7 @@ export default function AdminProgrammesPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Gestion des Programmes</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {PROGRAMS.length} programme{PROGRAMS.length > 1 ? "s" : ""} — {totalStudents} étudiant{totalStudents > 1 ? "s" : ""} inscrit{totalStudents > 1 ? "s" : ""}
+            {programs.length} programme{programs.length > 1 ? "s" : ""} — {totalStudents} étudiant{totalStudents > 1 ? "s" : ""} inscrit{totalStudents > 1 ? "s" : ""}
           </p>
         </div>
         <Link
@@ -138,10 +160,11 @@ export default function AdminProgrammesPage() {
       ) : (
         <div className="flex flex-col gap-3">
           {filteredPrograms.map((program) => {
-            const mentor = USERS.find((u) => u.id === program.mentorId)
-            const enrollments = PROGRAM_ENROLLMENTS.filter((e) => e.programId === program.id)
-            const avgProgress = enrollments.length > 0
-              ? Math.round(enrollments.reduce((acc, e) => acc + e.progress, 0) / enrollments.length)
+            const mentor = users.find((u) => u.id === program.mentorId)
+            const programEnrollments = enrollments.filter((e) => e.programId === program.id)
+            const levelCount = levels.filter((l) => l.programId === program.id).length
+            const avgProgress = programEnrollments.length > 0
+              ? Math.round(programEnrollments.reduce((acc, e) => acc + e.progress, 0) / programEnrollments.length)
               : 0
 
             return (
@@ -168,12 +191,12 @@ export default function AdminProgrammesPage() {
 
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                       <div className="flex items-center gap-1"><Calendar className="size-3" />{program.duration} mois</div>
-                      <div className="flex items-center gap-1"><Layers className="size-3" />{LEVELS.filter(l => l.programId === program.id).length} niveaux</div>
-                      <div className="flex items-center gap-1"><Users className="size-3" />{enrollments.length} inscrits</div>
+                      <div className="flex items-center gap-1"><Layers className="size-3" />{levelCount} niveaux</div>
+                      <div className="flex items-center gap-1"><Users className="size-3" />{programEnrollments.length} inscrits</div>
                       {mentor && <span>Mentor: {mentor.name}</span>}
                     </div>
 
-                    {enrollments.length > 0 && (
+                    {programEnrollments.length > 0 && (
                       <div className="flex items-center gap-3">
                         <div className="flex-1 max-w-xs">
                           <div className="flex justify-between text-xs text-muted-foreground mb-0.5">

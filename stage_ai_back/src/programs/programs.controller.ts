@@ -42,6 +42,12 @@ export class ProgramsController {
     return this.programsService.findByStudentId(studentId);
   }
 
+  @Get('student/:studentId/enrollments')
+  @ApiOperation({ summary: 'Inscriptions d\'un étudiant aux programmes' })
+  getStudentEnrollments(@Param('studentId') studentId: string) {
+    return this.programsService.getStudentEnrollments(studentId);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Détail d\'un programme' })
   @ApiResponse({ status: 200, description: 'Programme trouvé' })

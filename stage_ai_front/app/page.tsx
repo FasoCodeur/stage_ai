@@ -3,9 +3,10 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
-import { COURSES } from "@/lib/mock-data"
+import { useCourseStore } from "@/lib/stores/course-store"
 import { LoginModal } from "@/components/auth/login-modal"
 import { InscriptionModal } from "@/components/auth/inscription-modal"
+import { ForgotPasswordModal } from "@/components/auth/forgot-password-modal"
 import { BookOpen, Users, Award, Zap, ChevronRight, Check, Clock, Star } from "lucide-react"
 import Link from "next/link"
 
@@ -71,8 +72,14 @@ const PLANS = [
 export default function LandingPage() {
   const { user, isLoading } = useAuth()
   const router = useRouter()
+  const { courses, fetchCourses } = useCourseStore()
   const [showLogin, setShowLogin] = useState(false)
   const [showInscription, setShowInscription] = useState(false)
+  const [showForgotPassword, setShowForgotPassword] = useState(false)
+
+  useEffect(() => {
+    fetchCourses()
+  }, [fetchCourses])
 
   useEffect(() => {
     if (!isLoading && user) {
@@ -82,7 +89,7 @@ export default function LandingPage() {
     }
   }, [user, isLoading, router])
 
-  const publishedCourses = COURSES.filter((c) => c.published).slice(0, 3)
+  const publishedCourses = courses.filter((c) => c.published).slice(0, 3)
 
   if (isLoading) return null
 
@@ -213,7 +220,7 @@ export default function LandingPage() {
                 <div className="flex items-center justify-between text-xs text-white/40 border-t border-white/6 pt-3">
                   <div className="flex items-center gap-3">
                     <span className="flex items-center gap-1"><Clock className="size-3" />{c.duration}h</span>
-                    <span className="flex items-center gap-1"><Users className="size-3" />{c.students.length}</span>
+                    <span className="flex items-center gap-1"><Users className="size-3" />{(c.students?.length || 0)}</span>
                     <span className="flex items-center gap-1"><Star className="size-3 fill-yellow-400 text-yellow-400" />4.8</span>
                   </div>
                   <span className="font-bold text-white text-sm">{c.price.toLocaleString("fr-FR")} FCFA</span>
@@ -343,8 +350,18 @@ export default function LandingPage() {
       </footer>
 
       {/* Modals */}
-      <LoginModal open={showLogin} onClose={() => setShowLogin(false)} onSwitchToInscription={() => { setShowLogin(false); setShowInscription(true) }} />
+      <LoginModal
+        open={showLogin}
+        onClose={() => setShowLogin(false)}
+        onSwitchToInscription={() => { setShowLogin(false); setShowInscription(true) }}
+        onForgotPassword={() => { setShowLogin(false); setShowForgotPassword(true) }}
+      />
       <InscriptionModal open={showInscription} onClose={() => setShowInscription(false)} onSwitchToLogin={() => { setShowInscription(false); setShowLogin(true) }} />
+      <ForgotPasswordModal
+        open={showForgotPassword}
+        onClose={() => setShowForgotPassword(false)}
+        onBackToLogin={() => { setShowForgotPassword(false); setShowLogin(true) }}
+      />
     </div>
   )
 }
