@@ -7,6 +7,7 @@ import {
   Put,
   Delete,
   Query,
+  Headers,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { CoursesService } from './courses.service';
@@ -60,20 +61,32 @@ export class CoursesController {
   @Post()
   @ApiOperation({ summary: 'Créer une formation' })
   @ApiResponse({ status: 201, description: 'Formation créée' })
-  create(@Body() dto: CreateCourseDto) {
+  create(@Body() dto: CreateCourseDto, @Headers('x-user-role') role?: string) {
+    // Seul l'administrateur définit le prix d'un cours
+    if (role !== 'admin') {
+      dto.price = 0;
+    }
     return this.coursesService.create(dto);
   }
 
   @Put(':id')
   @ApiOperation({ summary: 'Mettre à jour une formation' })
-  update(@Param('id') id: string, @Body() dto: UpdateCourseDto) {
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateCourseDto,
+    @Headers('x-user-role') role?: string,
+  ) {
+    // Seul l'administrateur peut modifier le prix
+    if (role !== 'admin') {
+      delete dto.price;
+    }
     return this.coursesService.update(id, dto);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Supprimer une formation' })
-  remove(@Param('id') id: string) {
-    this.coursesService.remove(id);
+  async remove(@Param('id') id: string) {
+    await this.coursesService.remove(id);
     return { message: 'Formation supprimée avec succès' };
   }
 }

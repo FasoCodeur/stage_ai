@@ -7,17 +7,22 @@ interface AuthUser {
   id: string
   name: string
   email: string
-  role: "admin" | "professeur" | "etudiant"
+  role: "admin" | "professeur" | "etudiant" | "tuteur"
   avatar: string
   phone?: string
   ville?: string
   niveau?: string
+  entrepriseId?: string
+  objectifMetier?: string
+  niveauEvalue?: string
+  assessmentDoneAt?: string
 }
 
 interface AuthContextType {
   user: AuthUser | null
   login: (email: string, password: string) => Promise<{ success: boolean; role?: string; error?: string }>
   logout: () => void
+  updateUser: (data: Partial<AuthUser>) => void
   isLoading: boolean
 }
 
@@ -63,8 +68,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log("User logged out")
   }
 
+  /** Met à jour le profil local (et le stockage) après une modification côté serveur. */
+  const updateUser = (data: Partial<AuthUser>) => {
+    setUser((prev) => {
+      if (!prev) return prev
+      const next = { ...prev, ...data }
+      localStorage.setItem("stageia_user", JSON.stringify(next))
+      return next
+    })
+  }
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, login, logout, updateUser, isLoading }}>
       {children}
     </AuthContext.Provider>
   )

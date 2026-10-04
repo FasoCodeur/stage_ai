@@ -66,6 +66,29 @@ export default function EtudiantPage() {
         <p className="text-sm text-muted-foreground mt-1">Continuez votre apprentissage là où vous vous êtes arrêté</p>
       </div>
 
+      {/* Invitation à l'évaluation IA */}
+      {user && !user.assessmentDoneAt && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3">
+          <div className="flex items-center gap-2.5">
+            <div className="size-8 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+              <Sparkles className="size-4 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-foreground">
+                Faites évaluer votre niveau par l&apos;IA
+              </p>
+              <p className="text-xs text-muted-foreground">
+                En 2 minutes, obtenez un parcours de formation personnalisé selon votre objectif.
+              </p>
+            </div>
+          </div>
+          <Link href="/etudiant/onboarding" className={buttonVariants({ size: "sm", className: "shrink-0" })}>
+            Commencer l&apos;évaluation
+            <ArrowRight />
+          </Link>
+        </div>
+      )}
+
       {/* New courses notification banner */}
       {newCourses.length > 0 && (
         <div className="flex items-center justify-between gap-3 rounded-xl border border-chart-3/30 bg-chart-3/5 px-4 py-3">

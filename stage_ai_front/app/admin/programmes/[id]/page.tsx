@@ -7,6 +7,7 @@ import { useProgramStore } from "@/lib/stores/program-store"
 import { useUserStore } from "@/lib/stores/user-store"
 import { useCourseStore } from "@/lib/stores/course-store"
 import { Card, CardContent } from "@/components/ui/card"
+import { ProgramThumbnail } from "@/components/program-thumbnail"
 import { Badge } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
@@ -20,9 +21,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
+import { getFriendlyErrorMessage } from "@/lib/api"
 import {
   ArrowLeft,
   Calendar,
+  Check,
+  ChevronLeft,
+  ChevronRight,
   Users,
   Layers,
   UserCheck,
@@ -36,6 +42,11 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 
+const LEVEL_FORM_STEPS = [
+  { number: 1, label: "Infos" },
+  { number: 2, label: "Cours" },
+] as const
+
 export default function AdminProgramDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const { user } = useAuth()
@@ -46,11 +57,16 @@ export default function AdminProgramDetailPage({ params }: { params: Promise<{ i
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
-  // New level form
+  // New level form (2 steps: informations then courses)
   const [showLevelForm, setShowLevelForm] = useState(false)
+  const [levelStep, setLevelStep] = useState<1 | 2>(1)
   const [levelTitle, setLevelTitle] = useState("")
   const [levelDescription, setLevelDescription] = useState("")
   const [levelDuration, setLevelDuration] = useState(30)
+  const [selectedLevelCourseIds, setSelectedLevelCourseIds] = useState<string[]>([])
+  const [levelCourseFilter, setLevelCourseFilter] = useState("")
+  const [creatingLevel, setCreatingLevel] = useState(false)
+  const [levelError, setLevelError] = useState("")
 
   // Assign course modal
   const [assigningLevelId, setAssigningLevelId] = useState<string | null>(null)
@@ -100,6 +116,13 @@ export default function AdminProgramDetailPage({ params }: { params: Promise<{ i
 
   const availableCourses = courses.filter((c) => c.published)
   const courseById = (cid: string) => courses.find((c) => c.id === cid)
+  const unpublishedCoursesCount = courses.length - availableCourses.length
+  const levelCourseSearch = levelCourseFilter.trim().toLowerCase()
+  const filteredLevelCourses = availableCourses.filter((c) =>
+    c.title.toLowerCase().includes(levelCourseSearch)
+  )
+  const allVisibleCoursesSelected =
+    filteredLevelCourses.length > 0 && filteredLevelCourses.every((c) => selectedLevelCourseIds.includes(c.id))
   const avgProgress = programEnrollments.length > 0
     ? Math.round(programEnrollments.reduce((acc, e) => acc + e.progress, 0) / programEnrollments.length)
     : 0
@@ -120,17 +143,72 @@ export default function AdminProgramDetailPage({ params }: { params: Promise<{ i
     }
   }
 
-  const handleAddLevel = async () => {
-    if (!levelTitle.trim()) return
-    await createLevelApi(program.id, {
-      title: levelTitle,
-      description: levelDescription,
-      duration: levelDuration,
-    })
+  const handleCloseLevelForm = () => {
+    setShowLevelForm(false)
+    setLevelStep(1)
     setLevelTitle("")
     setLevelDescription("")
     setLevelDuration(30)
-    setShowLevelForm(false)
+    setSelectedLevelCourseIds([])
+    setLevelCourseFilter("")
+    setLevelError("")
+  }
+
+  const handleOpenLevelForm = () => {
+    setShowLevelForm(true)
+    setLevelStep(1)
+    setLevelError("")
+  }
+
+  const handleToggleLevelForm = () => {
+    if (showLevelForm) {
+      handleCloseLevelForm()
+    } else {
+      handleOpenLevelForm()
+    }
+  }
+
+  const handleGoToLevelCourses = () => {
+    if (!levelTitle.trim()) {
+      setLevelError("Indiquez un titre pour le niveau avant de continuer.")
+      return
+    }
+    setLevelError("")
+    setLevelStep(2)
+  }
+
+  const handleToggleLevelCourse = (courseId: string) => {
+    setSelectedLevelCourseIds((previous) =>
+      previous.includes(courseId) ? previous.filter((id) => id !== courseId) : [...previous, courseId]
+    )
+  }
+
+  const handleSelectAllLevelCourses = () => {
+    const visibleIds = filteredLevelCourses.map((c) => c.id)
+    setSelectedLevelCourseIds((previous) =>
+      allVisibleCoursesSelected
+        ? previous.filter((id) => !visibleIds.includes(id))
+        : Array.from(new Set([...previous, ...visibleIds]))
+    )
+  }
+
+  const handleCreateLevel = async () => {
+    if (!levelTitle.trim() || creatingLevel) return
+    setCreatingLevel(true)
+    setLevelError("")
+    try {
+      await createLevelApi(program.id, {
+        title: levelTitle.trim(),
+        description: levelDescription,
+        duration: levelDuration,
+        courses: selectedLevelCourseIds,
+      })
+      handleCloseLevelForm()
+    } catch (err) {
+      setLevelError(getFriendlyErrorMessage(err, "La création du niveau a échoué. Veuillez réessayer."))
+    } finally {
+      setCreatingLevel(false)
+    }
   }
 
   const handleRemoveLevel = async (levelId: string) => {
@@ -162,9 +240,13 @@ export default function AdminProgramDetailPage({ params }: { params: Promise<{ i
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row gap-6">
-        <div className="size-20 rounded-xl bg-primary/5 flex items-center justify-center shrink-0">
-          <span className="text-4xl">{program.thumbnail}</span>
-        </div>
+        <ProgramThumbnail
+          value={program.thumbnail}
+          alt={program.title}
+          className="size-20 rounded-xl bg-primary/5 shrink-0"
+          textClassName="text-4xl"
+          iconClassName="size-7"
+        />
         <div className="flex-1 flex flex-col gap-3">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -224,7 +306,7 @@ export default function AdminProgramDetailPage({ params }: { params: Promise<{ i
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold text-foreground">Niveaux</h2>
           <button
-            onClick={() => setShowLevelForm(!showLevelForm)}
+            onClick={handleToggleLevelForm}
             className={buttonVariants({ size: "sm" })}
           >
             <PlusCircle className="size-3.5" />
@@ -232,32 +314,174 @@ export default function AdminProgramDetailPage({ params }: { params: Promise<{ i
           </button>
         </div>
 
-        {/* Add level form */}
+        {/* Add level form : 2 étapes (informations puis cours) */}
         {showLevelForm && (
           <Card className="mb-4 border-primary/30">
             <CardContent className="p-4">
-              <h3 className="text-sm font-semibold text-foreground mb-3">Nouveau niveau</h3>
-              <div className="flex flex-col gap-3">
-                <div>
-                  <Label htmlFor="levelTitle">Titre du niveau</Label>
-                  <Input id="levelTitle" value={levelTitle} onChange={(e) => setLevelTitle(e.target.value)} placeholder="Ex: Fondamentaux du Web" />
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <h3 className="text-sm font-semibold text-foreground">
+                  {levelStep === 1 ? "Nouveau niveau" : `Nouveau niveau : ${levelTitle.trim()}`}
+                </h3>
+                <span className="text-xs text-muted-foreground">Étape {levelStep}/2</span>
+              </div>
+
+              {/* Progression : même langage visuel que l'assistant de création du programme */}
+              <ol className="mb-4 flex items-center gap-2">
+                {LEVEL_FORM_STEPS.map((item, index) => {
+                  const isDone = levelStep > item.number
+                  const isCurrent = levelStep === item.number
+                  const canGoBack = isDone && !creatingLevel
+
+                  return (
+                    <li key={item.number} className="flex items-center gap-2 flex-1 last:flex-none">
+                      <button
+                        type="button"
+                        disabled={!canGoBack}
+                        onClick={() => canGoBack && setLevelStep(item.number)}
+                        className={`flex items-center gap-2 ${canGoBack ? "cursor-pointer" : "cursor-default"}`}
+                      >
+                        <span
+                          className={`flex size-6 items-center justify-center rounded-full border text-[11px] font-semibold ${
+                            isDone
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : isCurrent
+                                ? "border-primary text-primary"
+                                : "border-muted-foreground/30 text-muted-foreground"
+                          }`}
+                        >
+                          {isDone ? <Check className="size-3.5" /> : item.number}
+                        </span>
+                        <span className={isCurrent ? "text-xs font-medium text-foreground" : "text-xs text-muted-foreground"}>
+                          {item.label}
+                        </span>
+                      </button>
+                      {index < LEVEL_FORM_STEPS.length - 1 && (
+                        <span className={`hidden sm:block h-px flex-1 ${levelStep > item.number ? "bg-primary" : "bg-border"}`} />
+                      )}
+                    </li>
+                  )
+                })}
+              </ol>
+
+              {levelStep === 1 && (
+                <div className="flex flex-col gap-3">
+                  <div>
+                    <Label htmlFor="levelTitle">Titre du niveau</Label>
+                    <Input id="levelTitle" value={levelTitle} onChange={(e) => setLevelTitle(e.target.value)} placeholder="Ex: Fondamentaux du Web" />
+                  </div>
+                  <div>
+                    <Label htmlFor="levelDesc">Description</Label>
+                    <Textarea id="levelDesc" value={levelDescription} onChange={(e) => setLevelDescription(e.target.value)} rows={2} />
+                  </div>
+                  <div>
+                    <Label htmlFor="levelDuration">Durée (jours)</Label>
+                    <Input id="levelDuration" type="number" min={1} value={levelDuration} onChange={(e) => setLevelDuration(Number(e.target.value))} />
+                  </div>
                 </div>
-                <div>
-                  <Label htmlFor="levelDesc">Description</Label>
-                  <Textarea id="levelDesc" value={levelDescription} onChange={(e) => setLevelDescription(e.target.value)} rows={2} />
+              )}
+              {levelStep === 2 && (
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      {selectedLevelCourseIds.length} cours sélectionné{selectedLevelCourseIds.length > 1 ? "s" : ""} sur {availableCourses.length} disponible{availableCourses.length > 1 ? "s" : ""}
+                    </p>
+                    {filteredLevelCourses.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleSelectAllLevelCourses}
+                        className={buttonVariants({ variant: "outline", size: "sm" })}
+                      >
+                        {allVisibleCoursesSelected ? "Tout désélectionner" : "Tout sélectionner"}
+                      </button>
+                    )}
+                  </div>
+
+                  {availableCourses.length === 0 ? (
+                    <p className="rounded-lg border bg-muted/20 px-3 py-6 text-center text-xs italic text-muted-foreground">
+                      Aucun cours publié disponible pour le moment. Vous pourrez assigner des cours plus tard depuis la liste des niveaux.
+                    </p>
+                  ) : (
+                    <>
+                      <Input
+                        type="search"
+                        placeholder="Rechercher un cours..."
+                        value={levelCourseFilter}
+                        onChange={(e) => setLevelCourseFilter(e.target.value)}
+                        className="h-9"
+                      />
+
+                      {filteredLevelCourses.length === 0 ? (
+                        <p className="rounded-lg border bg-muted/20 px-3 py-6 text-center text-xs italic text-muted-foreground">
+                          Aucun cours ne correspond à la recherche.
+                        </p>
+                      ) : (
+                        <div className="max-h-64 overflow-y-auto rounded-lg border divide-y">
+                          {filteredLevelCourses.map((course) => (
+                            <label
+                              key={course.id}
+                              className="flex cursor-pointer items-center gap-2 px-3 py-2 text-xs hover:bg-muted/40"
+                            >
+                              <Checkbox
+                                checked={selectedLevelCourseIds.includes(course.id)}
+                                onCheckedChange={() => handleToggleLevelCourse(course.id)}
+                              />
+                              <span className="flex-1 truncate">{course.title}</span>
+                              <Badge variant="outline" className="text-[10px]">{course.level}</Badge>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+
+                      {unpublishedCoursesCount > 0 && (
+                        <p className="text-xs italic text-muted-foreground">
+                          {unpublishedCoursesCount} cours non publié{unpublishedCoursesCount > 1 ? "s" : ""} ne peu{unpublishedCoursesCount > 1 ? "vent" : "t"} pas être assigné{unpublishedCoursesCount > 1 ? "s" : ""}.
+                        </p>
+                      )}
+                    </>
+                  )}
+
+                  {selectedLevelCourseIds.length === 0 && (
+                    <p className="text-xs text-amber-600">
+                      Astuce : un niveau sans cours empêche la publication du programme.
+                    </p>
+                  )}
                 </div>
-                <div>
-                  <Label htmlFor="levelDuration">Durée (jours)</Label>
-                  <Input id="levelDuration" type="number" min={1} value={levelDuration} onChange={(e) => setLevelDuration(Number(e.target.value))} />
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={handleAddLevel} className={buttonVariants({ size: "sm" })}>
-                    <PlusCircle className="size-3" /> Ajouter
+              )}
+
+              {levelError && <p className="mt-3 text-xs text-destructive">{levelError}</p>}
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                {levelStep === 2 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLevelError("")
+                      setLevelStep(1)
+                    }}
+                    disabled={creatingLevel}
+                    className={buttonVariants({ variant: "outline", size: "sm" })}
+                  >
+                    <ChevronLeft className="size-3" /> Retour
                   </button>
-                  <button onClick={() => setShowLevelForm(false)} className={buttonVariants({ size: "sm", variant: "outline" })}>
-                    Annuler
+                )}
+                {levelStep === 1 ? (
+                  <button type="button" onClick={handleGoToLevelCourses} className={buttonVariants({ size: "sm" })}>
+                    <ChevronRight className="size-3" /> Suivant
                   </button>
-                </div>
+                ) : (
+                  <button type="button" onClick={handleCreateLevel} disabled={creatingLevel} className={buttonVariants({ size: "sm" })}>
+                    {creatingLevel ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+                    {creatingLevel ? "Création..." : "Créer le niveau"}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleCloseLevelForm}
+                  disabled={creatingLevel}
+                  className={buttonVariants({ variant: "outline", size: "sm" })}
+                >
+                  Annuler
+                </button>
               </div>
             </CardContent>
           </Card>

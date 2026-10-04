@@ -18,6 +18,7 @@ interface SubscriptionState {
   fetchAllSubscriptions: () => Promise<void>
   fetchSubscriptionsByUser: (userId: string) => Promise<void>
   createSubscription: (userId: string, plan?: string) => Promise<Subscription>
+  updateSubscriptionApi: (userId: string, data: { extendMonths?: number; status?: string }) => Promise<Subscription>
   cancelSubscriptionApi: (userId: string) => Promise<void>
   hasActiveSubscriptionApi: (userId: string) => Promise<boolean>
 
@@ -87,6 +88,19 @@ export const useSubscriptionStore = create<SubscriptionState>()((set, get) => ({
       subscriptions: [...state.subscriptions, data],
     }))
     return data
+  },
+
+  updateSubscriptionApi: async (userId, data) => {
+    const updated = await apiFetch<Subscription>(`/subscriptions/user/${userId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    })
+    set((state) => ({
+      subscriptions: state.subscriptions.map((s) =>
+        s.userId === userId ? updated : s
+      ),
+    }))
+    return updated
   },
 
   cancelSubscriptionApi: async (userId) => {

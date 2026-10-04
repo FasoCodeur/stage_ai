@@ -85,6 +85,7 @@ export default function LandingPage() {
     if (!isLoading && user) {
       if (user.role === "admin") router.push("/admin")
       else if (user.role === "professeur") router.push("/professeur")
+      else if (user.role === "tuteur") router.push("/tuteur")
       else router.push("/etudiant")
     }
   }, [user, isLoading, router])

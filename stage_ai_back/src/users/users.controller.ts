@@ -11,6 +11,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @ApiTags('Utilisateurs')
 @ApiBearerAuth()
@@ -47,6 +48,14 @@ export class UsersController {
     return this.usersService.create(dto);
   }
 
+  @Put(':id/password')
+  @ApiOperation({ summary: "Changer le mot de passe d'un utilisateur" })
+  @ApiResponse({ status: 200, description: 'Mot de passe modifié' })
+  @ApiResponse({ status: 400, description: 'Mot de passe actuel incorrect' })
+  changePassword(@Param('id') id: string, @Body() dto: ChangePasswordDto) {
+    return this.usersService.changePassword(id, dto);
+  }
+
   @Put(':id')
   @ApiOperation({ summary: 'Mettre à jour un utilisateur' })
   @ApiResponse({ status: 200, description: 'Utilisateur mis à jour' })
@@ -59,8 +68,8 @@ export class UsersController {
   @ApiOperation({ summary: 'Supprimer un utilisateur' })
   @ApiResponse({ status: 204, description: 'Utilisateur supprimé' })
   @ApiResponse({ status: 404, description: 'Utilisateur non trouvé' })
-  remove(@Param('id') id: string) {
-    this.usersService.remove(id);
+  async remove(@Param('id') id: string) {
+    await this.usersService.remove(id);
     return { message: 'Utilisateur supprimé avec succès' };
   }
 }

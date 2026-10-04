@@ -32,6 +32,7 @@ export function LoginModal({ open, onClose, onSwitchToInscription, onForgotPassw
       onClose()
       if (result.role === "admin") router.push("/admin")
       else if (result.role === "professeur") router.push("/professeur")
+      else if (result.role === "tuteur") router.push("/tuteur")
       else router.push("/etudiant")
     } else {
       setError(result.error || "Email ou mot de passe incorrect.")
@@ -123,6 +124,7 @@ export function LoginModal({ open, onClose, onSwitchToInscription, onForgotPassw
               { label: "Admin", email: "admin@stageia.com", password: "12345678" },
               { label: "Professeur", email: "prof@stageia.com", password: "12345678" },
               { label: "Etudiant", email: "etudiant@stageia.com", password: "12345678" },
+              { label: "Entreprise Partenaire", email: "entreprise@stageia.com", password: "12345678" },
             ].map((acc) => (
               <button
                 key={acc.email}

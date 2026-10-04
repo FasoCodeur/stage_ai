@@ -8,6 +8,7 @@ import { useUserStore } from "@/lib/stores/user-store"
 import { useCourseStore } from "@/lib/stores/course-store"
 import { useSubscriptionStore } from "@/lib/stores/subscription-store"
 import { Card, CardContent } from "@/components/ui/card"
+import { ProgramThumbnail } from "@/components/program-thumbnail"
 import { Badge } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
@@ -119,9 +120,13 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row gap-6">
-        <div className="size-24 rounded-xl bg-primary/5 flex items-center justify-center shrink-0">
-          <span className="text-5xl">{program.thumbnail}</span>
-        </div>
+        <ProgramThumbnail
+          value={program.thumbnail}
+          alt={program.title}
+          className="size-24 rounded-xl bg-primary/5 shrink-0"
+          textClassName="text-5xl"
+          iconClassName="size-10"
+        />
         <div className="flex-1 flex flex-col gap-3">
           <div className="flex items-start justify-between gap-4">
             <div>

@@ -4,8 +4,8 @@ import {
   streamText,
   toUIMessageStream,
   UIMessage,
-  gateway,
 } from "ai"
+import { groq } from "@ai-sdk/groq"
 
 export const maxDuration = 30
 
@@ -34,7 +34,7 @@ Règles importantes :
 - Tu peux utiliser des emojis pour rendre la conversation plus vivante`
 
   const result = streamText({
-    model: gateway("anthropic/claude-haiku-4.5"),
+    model: groq("openai/gpt-oss-20b"),
     system: systemPrompt,
     messages: await convertToModelMessages(messages),
   })

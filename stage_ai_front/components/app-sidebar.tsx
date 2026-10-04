@@ -1,8 +1,10 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
+import { ChangePasswordModal } from "@/components/auth/change-password-modal"
 import {
   Sidebar,
   SidebarContent,
@@ -17,6 +19,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 import {
@@ -35,6 +38,13 @@ import {
   PlusCircle,
   UserCog,
   Layers,
+  FilePlus2,
+  Inbox,
+  ClipboardCheck,
+  KeyRound,
+  Lightbulb,
+  Route,
+  Sparkles,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -54,11 +64,23 @@ export function AppLayout({ navItems, groupLabel, children }: AppSidebarProps) {
   const { user, logout } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
+  const [showChangePassword, setShowChangePassword] = useState(false)
 
   const handleLogout = () => {
     logout()
     window.location.href = "/"
   }
+
+  const currentNavLabel = navItems.find((item) => pathname === item.href)?.label
+
+  const roleLabels: Record<string, string> = {
+    admin: "Administrateur",
+    professeur: "Professeur",
+    etudiant: "Étudiant",
+    tuteur: "Tuteur",
+    mentor: "Mentor",
+  }
+  const roleLabel = user ? (roleLabels[user.role] ?? user.role) : ""
 
   return (
     <SidebarProvider>
@@ -106,8 +128,12 @@ export function AppLayout({ navItems, groupLabel, children }: AppSidebarProps) {
                 </div>
                 <ChevronDown className="size-3.5 text-sidebar-foreground/60 flex-shrink-0" />
               </DropdownMenuTrigger>
-              <DropdownMenuContent side="top" align="start" className="w-48">
-                <DropdownMenuItem onSelect={handleLogout} onClick={handleLogout} className="text-destructive">
+              <DropdownMenuContent side="top" align="start" className="w-52">
+                <DropdownMenuItem onClick={() => setShowChangePassword(true)}>
+                  <KeyRound />
+                  Changer le mot de passe
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleLogout} className="text-destructive">
                   <LogOut />
                   Se déconnecter
                 </DropdownMenuItem>
@@ -120,13 +146,27 @@ export function AppLayout({ navItems, groupLabel, children }: AppSidebarProps) {
         <div className="flex flex-col flex-1 min-w-0">
           <header className="h-14 border-b bg-card flex items-center px-4 gap-3">
             <SidebarTrigger />
-            <div className="flex-1" />
+            <div className="min-w-0 flex-1 flex items-center gap-2">
+              <span className="text-sm font-semibold text-foreground truncate">
+                {currentNavLabel ?? groupLabel}
+              </span>
+            </div>
+            <Badge variant="secondary" className="hidden sm:inline-flex capitalize">
+              {roleLabel}
+            </Badge>
+            <Avatar className="size-8">
+              <AvatarFallback className="text-xs bg-primary text-primary-foreground">
+                {user?.avatar ?? "U"}
+              </AvatarFallback>
+            </Avatar>
           </header>
           <main className="flex-1 p-6 bg-background overflow-auto">
             {children}
           </main>
         </div>
       </div>
+
+      <ChangePasswordModal open={showChangePassword} onClose={() => setShowChangePassword(false)} />
     </SidebarProvider>
   )
 }
@@ -137,8 +177,13 @@ export const ADMIN_NAV: NavItem[] = [
   { label: "Etudiants", href: "/admin/etudiants", icon: GraduationCap },
   { label: "Professeurs", href: "/admin/professeurs", icon: UserCog },
   { label: "Cours", href: "/admin/cours", icon: BookOpen },
+  { label: "Nouveau cours", href: "/admin/cours/nouveau", icon: PlusCircle },
+  { label: "Suggestions IA", href: "/admin/suggestions", icon: Lightbulb },
   { label: "Programmes", href: "/admin/programmes", icon: Layers },
+  { label: "Entreprises partenaires", href: "/admin/entreprises", icon: Users },
   { label: "Stages virtuels", href: "/admin/stages", icon: Briefcase },
+  { label: "Offres entreprise", href: "/admin/offres", icon: FilePlus2 },
+  { label: "Candidatures", href: "/admin/candidatures", icon: Inbox },
   { label: "Dossiers à valider", href: "/admin/dossiers", icon: FileCheck },
   { label: "Statistiques", href: "/admin/stats", icon: BarChart3 },
 ]
@@ -153,8 +198,22 @@ export const PROF_NAV: NavItem[] = [
 
 export const ETUDIANT_NAV: NavItem[] = [
   { label: "Tableau de bord", href: "/etudiant", icon: LayoutDashboard },
+  { label: "Mon parcours IA", href: "/etudiant/parcours", icon: Route },
+  { label: "Évaluation IA", href: "/etudiant/onboarding", icon: Sparkles },
   { label: "Formations", href: "/etudiant/formations", icon: Library },
   { label: "Mes formations", href: "/etudiant/cours", icon: BookOpen },
   { label: "Programmes", href: "/etudiant/programmes", icon: Layers },
-  { label: "Stage virtuel", href: "/etudiant/stage", icon: Briefcase },
+  { label: "Offres de stage", href: "/offres", icon: Briefcase },
+  { label: "Mon stage", href: "/etudiant/stage", icon: ClipboardCheck },
+]
+
+export const TUTEUR_NAV: NavItem[] = [
+  { label: "Mes offres", href: "/tuteur/offres", icon: FilePlus2 },
+  { label: "Nouvelle offre", href: "/tuteur/offres/nouvelle", icon: PlusCircle },
+  { label: "Mes stagiaires", href: "/tuteur/stages", icon: Users },
+  { label: "Mes tuteurs", href: "/tuteur/tuteurs", icon: UserCog },
+]
+
+export const MENTOR_NAV: NavItem[] = [
+  { label: "Mes stagiaires", href: "/mentor/stages", icon: Users },
 ]

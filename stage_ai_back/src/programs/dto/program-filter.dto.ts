@@ -1,9 +1,14 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsOptional, IsString } from 'class-validator';
 
 export class ProgramFilterDto {
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: 'u2' })
+  @IsOptional()
+  @IsString()
   mentorId?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: 'true' })
+  @IsOptional()
+  @IsString()
   published?: string;
 }

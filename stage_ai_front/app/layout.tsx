@@ -9,7 +9,10 @@ const _inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
   title: 'StageIA — Plateforme de Formation & Stages Virtuels',
   description: "Formez-vous aux compétences du marché grâce à l'IA. Accédez à des formations personnalisées, des stages virtuels et un suivi intelligent.",
-  generator: 'v0.app',
+  generator: 'fasoCodeur.com',
+  icons: {
+    icon: '/graduation.png',
+  },
 }
 
 export const viewport: Viewport = {

@@ -4,8 +4,9 @@ import { useState, useRef, useEffect } from "react"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
 import { cn } from "@/lib/utils"
-import { X, Send, Bot, Sparkles, RotateCcw } from "lucide-react"
+import { X, Send, Bot, Sparkles, RotateCcw, AlertCircle } from "lucide-react"
 import { useAIChatContext } from "@/lib/ai-chat-context"
+import { getFriendlyErrorMessage } from "@/lib/api"
 
 export function AIChatButton() {
   const { courseTitle, lessonTitle } = useAIChatContext()
@@ -13,7 +14,7 @@ export function AIChatButton() {
   const [input, setInput] = useState("")
   const bottomRef = useRef<HTMLDivElement>(null)
 
-  const { messages, sendMessage, status, setMessages } = useChat({
+  const { messages, sendMessage, status, setMessages, error } = useChat({
     transport: new DefaultChatTransport({
       api: "/api/chat",
       body: { courseTitle, lessonTitle },
@@ -153,6 +154,17 @@ export function AIChatButton() {
 
           {/* Input */}
           <div className="border-t p-3">
+            {error && (
+              <div className="mb-2 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                <AlertCircle className="size-3.5 shrink-0 mt-0.5" />
+                <span>
+                  {getFriendlyErrorMessage(
+                    error,
+                    "Le tuteur IA est momentanément indisponible. Veuillez réessayer dans un instant.",
+                  )}
+                </span>
+              </div>
+            )}
             <form onSubmit={handleSubmit} className="flex items-end gap-2">
               <textarea
                 value={input}

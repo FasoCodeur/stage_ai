@@ -6,6 +6,7 @@ import { type Program } from "@/lib/mock-data"
 import { useProgramStore } from "@/lib/stores/program-store"
 import { useUserStore } from "@/lib/stores/user-store"
 import { Card, CardContent } from "@/components/ui/card"
+import { ProgramThumbnail } from "@/components/program-thumbnail"
 import { Badge } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -46,9 +47,13 @@ function ProgramCard({
   if (viewMode === "list") {
     return (
       <Card className="overflow-hidden flex flex-col sm:flex-row relative">
-        <div className="sm:w-48 h-28 sm:h-auto bg-primary/5 flex items-center justify-center border-b sm:border-b-0 sm:border-r shrink-0">
-          <span className="text-5xl">{p.thumbnail}</span>
-        </div>
+        <ProgramThumbnail
+          value={p.thumbnail}
+          alt={p.title}
+          className="sm:w-48 h-28 sm:h-auto bg-primary/5 border-b sm:border-b-0 sm:border-r shrink-0"
+          textClassName="text-5xl"
+          iconClassName="size-10"
+        />
         <CardContent className="pt-4 pb-4 flex flex-col gap-3 flex-1">
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
             <div>
@@ -87,9 +92,13 @@ function ProgramCard({
 
   return (
     <Card className="overflow-hidden flex flex-col relative">
-      <div className="h-28 bg-primary/5 flex items-center justify-center border-b">
-        <span className="text-5xl">{p.thumbnail}</span>
-      </div>
+      <ProgramThumbnail
+        value={p.thumbnail}
+        alt={p.title}
+        className="h-28 w-full bg-primary/5 border-b"
+        textClassName="text-5xl"
+        iconClassName="size-10"
+      />
       <CardContent className="pt-4 pb-4 flex flex-col gap-3 flex-1">
         <div>
           <div className="flex items-start justify-between gap-2 mb-1">

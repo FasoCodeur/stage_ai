@@ -1,4 +1,5 @@
-import { gateway, generateText } from "ai"
+import { generateText } from "ai"
+import { groq } from "@ai-sdk/groq"
 
 export async function POST(req: Request) {
   const { enrollments, courses } = await req.json()
@@ -31,7 +32,7 @@ Réponds uniquement avec le JSON, sans aucun texte autour.`
 
   try {
     const { text } = await generateText({
-      model: gateway("anthropic/claude-haiku-4.5"),
+      model: groq("openai/gpt-oss-20b"),
       prompt,
     })
 

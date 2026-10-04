@@ -18,6 +18,7 @@ interface UserState {
 
   // Actions API
   fetchUsers: (role?: string) => Promise<void>
+  createUser: (user: Partial<User> & { password?: string }) => Promise<User>
   addUser: (
     user: User,
     actor?: { id: string; name: string; role: string }
@@ -75,6 +76,15 @@ export const useUserStore = create<UserState>()((set, get) => ({
       set({ isLoading: false })
       throw e
     }
+  },
+
+  createUser: async (user) => {
+    const created = await apiFetch<User>("/users", {
+      method: "POST",
+      body: JSON.stringify(user),
+    })
+    set((state) => ({ users: [...state.users, created] }))
+    return created
   },
 
   addUser: (user, actor) => {

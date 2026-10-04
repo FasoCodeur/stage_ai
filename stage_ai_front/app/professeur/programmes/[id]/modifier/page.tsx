@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { buttonVariants } from "@/components/ui/button"
+import { ImageUpload } from "@/components/image-upload"
 import { ArrowLeft, Save, Eye, EyeOff, Loader2 } from "lucide-react"
 import Link from "next/link"
 
@@ -77,7 +78,7 @@ export default function ModifierProgrammePage({ params }: { params: Promise<{ id
     await updateProgramApi(id, {
       title,
       description,
-      thumbnail,
+      thumbnail: thumbnail || null,
       duration,
       subscriptionPrice,
       published,
@@ -104,21 +105,10 @@ export default function ModifierProgrammePage({ params }: { params: Promise<{ id
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div>
-              <Label htmlFor="thumbnail">Image / Icône du programme</Label>
-              <div className="flex items-center gap-3 mt-1.5">
-                <div className="size-12 rounded-lg bg-primary/5 border flex items-center justify-center text-2xl shrink-0">
-                  {thumbnail || "?"}
-                </div>
-                <Input
-                  id="thumbnail"
-                  value={thumbnail}
-                  onChange={(e) => setThumbnail(e.target.value)}
-                  placeholder="Titre court, symbole ou URL d'image"
-                  className="flex-1"
-                />
-              </div>
-            </div>
+            <ImageUpload
+              value={thumbnail || null}
+              onChange={(value) => setThumbnail(value ?? "")}
+            />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">

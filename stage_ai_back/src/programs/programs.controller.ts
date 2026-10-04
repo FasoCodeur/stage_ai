@@ -12,6 +12,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@ne
 import { ProgramsService } from './programs.service';
 import { CreateProgramDto } from './dto/create-program.dto';
 import { UpdateProgramDto } from './dto/update-program.dto';
+import { UpdateProgramStepsDto } from './dto/update-program-steps.dto';
 import { ProgramFilterDto } from './dto/program-filter.dto';
 
 @ApiTags('Programmes')
@@ -71,8 +72,8 @@ export class ProgramsController {
 
   @Delete(':id')
   @ApiOperation({ summary: 'Supprimer un programme' })
-  remove(@Param('id') id: string) {
-    this.programsService.remove(id);
+  async remove(@Param('id') id: string) {
+    await this.programsService.remove(id);
     return { message: 'Programme supprimé avec succès' };
   }
 
@@ -99,6 +100,16 @@ export class ProgramsController {
     return this.programsService.createLevel(id, data);
   }
 
+  @Put(':id/steps')
+  @ApiOperation({
+    summary: "Remplacer le parcours d'un programme",
+    description:
+      "Enregistre les étapes dans l'ordre fourni : les étapes existantes gardent leur identifiant, les nouvelles sont créées, les absentes sont supprimées et l'ordre est renuméroté.",
+  })
+  replaceSteps(@Param('id') id: string, @Body() dto: UpdateProgramStepsDto) {
+    return this.programsService.replaceSteps(id, dto.steps);
+  }
+
   @Put('levels/:levelId')
   @ApiOperation({ summary: 'Mettre à jour un niveau' })
   updateLevel(
@@ -110,8 +121,8 @@ export class ProgramsController {
 
   @Delete('levels/:levelId')
   @ApiOperation({ summary: 'Supprimer un niveau' })
-  removeLevel(@Param('levelId') levelId: string) {
-    this.programsService.removeLevel(levelId);
+  async removeLevel(@Param('levelId') levelId: string) {
+    await this.programsService.removeLevel(levelId);
     return { message: 'Niveau supprimé avec succès' };
   }
 

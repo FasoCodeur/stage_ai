@@ -11,10 +11,11 @@ export class CreateUserDto {
   @IsEmail()
   email: string;
 
-  @ApiProperty({ example: 'admin123', description: 'Mot de passe' })
+  @ApiProperty({ example: 'admin123', description: 'Mot de passe (si vide, un mot de passe par défaut est généré et envoyé par email)' })
+  @IsOptional()
   @IsString()
   @MinLength(6)
-  password: string;
+  password?: string;
 
   @ApiProperty({ enum: Role, example: Role.ETUDIANT, description: 'Rôle utilisateur' })
   @IsEnum(Role)
@@ -38,4 +39,29 @@ export class CreateUserDto {
   @IsOptional()
   @IsString()
   niveau?: string;
+
+  @ApiPropertyOptional({ description: "ID de l'entreprise (pour les tuteurs)" })
+  @IsOptional()
+  @IsString()
+  entrepriseId?: string;
+
+  @ApiPropertyOptional({ description: 'Date de dernière connexion (YYYY-MM-DD)' })
+  @IsOptional()
+  @IsString()
+  lastLogin?: string;
+
+  @ApiPropertyOptional({ example: 'Développeur Web', description: 'Métier visé (parcours IA)' })
+  @IsOptional()
+  @IsString()
+  objectifMetier?: string;
+
+  @ApiPropertyOptional({ example: 'Débutant', description: 'Niveau évalué par l\'IA' })
+  @IsOptional()
+  @IsString()
+  niveauEvalue?: string;
+
+  @ApiPropertyOptional({ description: 'Date de l\'évaluation IA (ISO)' })
+  @IsOptional()
+  @IsString()
+  assessmentDoneAt?: string;
 }

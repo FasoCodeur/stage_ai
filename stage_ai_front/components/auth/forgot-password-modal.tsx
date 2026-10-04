@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { X, Mail, Check, ArrowLeft } from "lucide-react"
+import { apiFetch } from "@/lib/api"
 
 interface Props {
   open: boolean
@@ -20,11 +21,17 @@ export function ForgotPasswordModal({ open, onClose, onBackToLogin }: Props) {
     setError("")
     setLoading(true)
 
-    // Simuler l'envoi d'un email de réinitialisation
-    setTimeout(() => {
-      setLoading(false)
+    try {
+      await apiFetch<{ message: string }>("/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      })
       setSent(true)
-    }, 1500)
+    } catch (err: any) {
+      setError(err.message || "Erreur lors de l'envoi de l'email. Veuillez réessayer.")
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleClose = () => {

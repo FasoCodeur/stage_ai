@@ -10,8 +10,16 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { PurchasesModule } from './purchases/purchases.module';
 import { StageRequestsModule } from './stage-requests/stage-requests.module';
 import { AuthModule } from './auth/auth.module';
+import { MailerModule } from './common/mailer/mailer.module';
 import { ProgramsModule } from './programs/programs.module';
 import { SandboxModule } from './sandbox/sandbox.module';
+import { OffresModule } from './offres/offres.module';
+import { CandidaturesModule } from './candidatures/candidatures.module';
+import { StagesModule } from './stages/stages.module';
+import { EntreprisesModule } from './entreprises/entreprises.module';
+import { LearningPathsModule } from './learning-paths/learning-paths.module';
+import { CourseSuggestionsModule } from './course-suggestions/course-suggestions.module';
+import { UploadsModule } from './uploads/uploads.module';
 
 @Module({
   imports: [
@@ -19,6 +27,7 @@ import { SandboxModule } from './sandbox/sandbox.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
+    MailerModule,
     DatabaseModule,
     UsersModule,
     CoursesModule,
@@ -29,6 +38,13 @@ import { SandboxModule } from './sandbox/sandbox.module';
     AuthModule,
     ProgramsModule,
     SandboxModule,
+    OffresModule,
+    CandidaturesModule,
+    StagesModule,
+    EntreprisesModule,
+    LearningPathsModule,
+    CourseSuggestionsModule,
+    UploadsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

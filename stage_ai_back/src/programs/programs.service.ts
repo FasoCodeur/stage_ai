@@ -6,6 +6,7 @@ import { ProgramEnrollmentEntity } from '../database/entities/program-enrollment
 import { LevelEntity } from '../database/entities/level.entity';
 import { CreateProgramDto } from './dto/create-program.dto';
 import { UpdateProgramDto } from './dto/update-program.dto';
+import { UpdateProgramStepDto } from './dto/update-program-steps.dto';
 import { ProgramFilterDto } from './dto/program-filter.dto';
 
 @Injectable()
@@ -46,18 +47,50 @@ export class ProgramsService {
   }
 
   async create(dto: CreateProgramDto): Promise<ProgramEntity> {
+    const { levels, thumbnail, ...programData } = dto;
+
     const program = this.programRepo.create({
-      ...dto as any,
+      ...programData,
+      thumbnail: thumbnail || null,
       published: dto.published ?? false,
       students: [],
       createdAt: new Date().toISOString().split('T')[0],
     });
     const saved = await this.programRepo.save(program);
-    return Array.isArray(saved) ? saved[0] : saved;
+    const created = Array.isArray(saved) ? saved[0] : saved;
+
+    // Création des niveaux dans l'ordre fourni (1, 2, 3...)
+    if (levels?.length) {
+      const levelEntities = levels.map((level, index) =>
+        this.levelRepo.create({
+          programId: created.id,
+          title: level.title,
+          description: level.description || '',
+          duration: level.duration,
+          order: index + 1,
+          courses: level.courses || [],
+        }),
+      );
+      await this.levelRepo.save(levelEntities);
+    }
+
+    return created;
   }
 
   async update(id: string, dto: UpdateProgramDto): Promise<ProgramEntity> {
     const program = await this.findById(id);
+
+    // Garde-fou : on ne publie pas un programme sans contenu
+    if (dto.published === true) {
+      const levels = await this.levelRepo.find({ where: { programId: id } });
+      const hasContent = levels.some((level) => (level.courses?.length ?? 0) > 0);
+      if (!hasContent) {
+        throw new BadRequestException(
+          'Impossible de publier un programme sans au moins une étape contenant des cours.',
+        );
+      }
+    }
+
     Object.assign(program, dto);
     return this.programRepo.save(program);
   }
@@ -117,6 +150,90 @@ export class ProgramsService {
   async removeLevel(id: string): Promise<void> {
     const level = await this.getLevelById(id);
     await this.levelRepo.remove(level);
+  }
+
+  /**
+   * Remplace le parcours d'un programme par la liste fournie.
+   * Les étapes existantes conservent leur identifiant (la progression des
+   * étudiants reste valable), les nouvelles sont créées, les absentes sont
+   * supprimées et l'ordre est renuméroté de 1 à n.
+   */
+  async replaceSteps(
+    programId: string,
+    steps: UpdateProgramStepDto[],
+  ): Promise<LevelEntity[]> {
+    await this.findById(programId);
+
+    const existingLevels = await this.levelRepo.find({
+      where: { programId },
+      order: { order: 'ASC' },
+    });
+    const existingById = new Map(existingLevels.map((level) => [level.id, level]));
+
+    const keptIds = new Set<string>();
+    const savedLevels: LevelEntity[] = [];
+
+    for (let index = 0; index < steps.length; index += 1) {
+      const step = steps[index];
+      const existing = step.id ? existingById.get(step.id) : undefined;
+
+      if (existing) {
+        existing.title = step.title;
+        existing.description = step.description ?? '';
+        existing.duration = step.duration;
+        existing.order = index + 1;
+        existing.courses = step.courses ?? [];
+        const saved = await this.levelRepo.save(existing);
+        keptIds.add(saved.id);
+        savedLevels.push(saved);
+      } else {
+        const created = await this.levelRepo.save(
+          this.levelRepo.create({
+            programId,
+            title: step.title,
+            description: step.description ?? '',
+            duration: step.duration,
+            order: index + 1,
+            courses: step.courses ?? [],
+          }),
+        );
+        keptIds.add(created.id);
+        savedLevels.push(created);
+      }
+    }
+
+    // Étapes retirées du parcours : on les supprime et on nettoie les progressions
+    const removedIds = existingLevels
+      .filter((level) => !keptIds.has(level.id))
+      .map((level) => level.id);
+
+    if (removedIds.length > 0) {
+      await this.levelRepo.delete(removedIds);
+
+      const ordered = [...savedLevels].sort((a, b) => a.order - b.order);
+      const enrollments = await this.enrollmentRepo.findBy({ programId });
+
+      for (const enrollment of enrollments) {
+        const completedLevels = (enrollment.completedLevels || []).filter(
+          (levelId) => !removedIds.includes(levelId),
+        );
+        const currentLevelIndex = ordered.findIndex(
+          (level) => !completedLevels.includes(level.id),
+        );
+
+        enrollment.completedLevels = completedLevels;
+        enrollment.currentLevelIndex =
+          currentLevelIndex === -1 ? Math.max(ordered.length - 1, 0) : currentLevelIndex;
+        enrollment.progress =
+          ordered.length > 0
+            ? Math.round((completedLevels.length / ordered.length) * 100)
+            : 0;
+
+        await this.enrollmentRepo.save(enrollment);
+      }
+    }
+
+    return savedLevels.sort((a, b) => a.order - b.order);
   }
 
   // ========== ENROLLMENT ==========

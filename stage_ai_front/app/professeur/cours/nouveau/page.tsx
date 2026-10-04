@@ -27,7 +27,7 @@ export default function NewCoursePage() {
     category: "Développement Web",
     level: "Débutant",
     duration: 10,
-    price: 35000,
+    price: 0, // Le prix est défini par l'administrateur
     professorId: user?.id ?? "",
     published: false,
     thumbnail: "📚",

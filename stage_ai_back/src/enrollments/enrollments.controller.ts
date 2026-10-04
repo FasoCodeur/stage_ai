@@ -54,8 +54,8 @@ export class EnrollmentsController {
 
   @Delete(':userId/:courseId')
   @ApiOperation({ summary: 'Désinscrire un utilisateur' })
-  remove(@Param('userId') userId: string, @Param('courseId') courseId: string) {
-    this.enrollmentsService.remove(userId, courseId);
+  async remove(@Param('userId') userId: string, @Param('courseId') courseId: string) {
+    await this.enrollmentsService.remove(userId, courseId);
     return { message: 'Désinscription effectuée' };
   }
 }

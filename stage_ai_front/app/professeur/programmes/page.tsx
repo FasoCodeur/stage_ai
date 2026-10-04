@@ -4,6 +4,7 @@ import { useEffect, useMemo } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { useProgramStore } from "@/lib/stores/program-store"
 import { Card, CardContent } from "@/components/ui/card"
+import { ProgramThumbnail } from "@/components/program-thumbnail"
 import { Badge } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
@@ -86,9 +87,13 @@ export default function ProfessorProgrammesPage() {
 
             return (
               <Card key={program.id} className="flex flex-col overflow-hidden">
-                <div className="h-24 bg-primary/5 flex items-center justify-center border-b">
-                  <span className="text-4xl">{program.thumbnail}</span>
-                </div>
+                <ProgramThumbnail
+                  value={program.thumbnail}
+                  alt={program.title}
+                  className="h-24 w-full bg-primary/5 border-b"
+                  textClassName="text-4xl"
+                  iconClassName="size-8"
+                />
                 <CardContent className="pt-4 pb-4 flex flex-col gap-3 flex-1">
                   <div>
                     <div className="flex items-start justify-between gap-2 mb-1">

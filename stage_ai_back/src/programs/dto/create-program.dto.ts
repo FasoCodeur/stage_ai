@@ -1,5 +1,15 @@
-import { IsString, IsOptional, IsNumber, IsBoolean, Min } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsNumber,
+  IsBoolean,
+  IsArray,
+  Min,
+  ValidateNested,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { CreateProgramLevelDto } from './create-program-level.dto';
 
 export class CreateProgramDto {
   @ApiProperty({ description: 'Titre du programme' })
@@ -10,9 +20,23 @@ export class CreateProgramDto {
   @IsString()
   description: string;
 
-  @ApiProperty({ description: 'Emoji / thumbnail' })
+  @ApiPropertyOptional({
+    description: "URL du logo du programme (renvoyée par POST /uploads). Null si aucun logo.",
+    nullable: true,
+  })
+  @IsOptional()
   @IsString()
-  thumbnail: string;
+  thumbnail?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Niveaux du programme, créés dans cet ordre au moment de la création',
+    type: [CreateProgramLevelDto],
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateProgramLevelDto)
+  levels?: CreateProgramLevelDto[];
 
   @ApiProperty({ description: 'Durée en mois' })
   @IsNumber()

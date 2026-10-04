@@ -661,9 +661,11 @@ function ModuleItem({
 interface CourseEditorProps {
   initial: Course
   onSave: (course: Course) => void
+  /** Seul l'administrateur peut définir le prix du cours */
+  canEditPrice?: boolean
 }
 
-export function CourseEditor({ initial, onSave }: CourseEditorProps) {
+export function CourseEditor({ initial, onSave, canEditPrice = false }: CourseEditorProps) {
   const [course, setCourse] = useState<Course>(() => normalizeCourse(initial))
   const [expandedModules, setExpandedModules] = useState<Set<string>>(
     () => new Set((initial.modules || []).map((m) => m.id))
@@ -856,7 +858,18 @@ export function CourseEditor({ initial, onSave }: CourseEditorProps) {
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label className="text-xs">Prix (FCFA)</Label>
-                  <Input type="number" value={course.price} onChange={(e) => updateCourse({ price: parseInt(e.target.value) || 0 })} className="h-8 text-sm" />
+                  <Input
+                    type="number"
+                    value={course.price}
+                    onChange={(e) => canEditPrice && updateCourse({ price: parseInt(e.target.value) || 0 })}
+                    disabled={!canEditPrice}
+                    className="h-8 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                  />
+                  {!canEditPrice && (
+                    <p className="text-[10px] text-muted-foreground">
+                      Le prix est défini par l'administrateur.
+                    </p>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -926,7 +939,9 @@ export function CourseEditor({ initial, onSave }: CourseEditorProps) {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Prix</span>
-                  <span className="font-medium text-foreground">{course.price.toLocaleString("fr-FR")} FCFA</span>
+                  <span className="font-medium text-foreground">
+                    {course.price > 0 ? `${course.price.toLocaleString("fr-FR")} FCFA` : "À définir (admin)"}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Statut</span>

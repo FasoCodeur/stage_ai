@@ -20,3 +20,6 @@ Thumbs.db
 
 # testing
 coverage/
+# fichiers téléversés (logos de programmes, miniatures de cours…)
+/uploads/*
+!/uploads/.gitkeep

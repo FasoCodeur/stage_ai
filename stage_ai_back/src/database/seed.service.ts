@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { UserEntity } from './entities/user.entity';
+import { EntrepriseEntity } from './entities/entreprise.entity';
 import { CourseEntity } from './entities/course.entity';
 import { EnrollmentEntity } from './entities/enrollment.entity';
 import { SubscriptionEntity } from './entities/subscription.entity';
@@ -20,6 +21,8 @@ export class SeedService implements OnModuleInit {
   constructor(
     @InjectRepository(UserEntity)
     private readonly userRepo: Repository<UserEntity>,
+    @InjectRepository(EntrepriseEntity)
+    private readonly entrepriseRepo: Repository<EntrepriseEntity>,
     @InjectRepository(CourseEntity)
     private readonly courseRepo: Repository<CourseEntity>,
     @InjectRepository(EnrollmentEntity)
@@ -72,8 +75,23 @@ export class SeedService implements OnModuleInit {
       { name: 'Mariama Balde', email: 'mariama@stageia.com', password: hashedPassword, role: 'etudiant', avatar: 'MB', ville: 'Conakry', niveau: 'Bac' },
       { name: 'Omar Coulibaly', email: 'omar@stageia.com', password: hashedPassword, role: 'etudiant', avatar: 'OC', ville: 'Abidjan', niveau: 'Bac+3' },
       { name: 'Aissatou Barry', email: 'aissatou@stageia.com', password: hashedPassword, role: 'etudiant', avatar: 'AB', ville: 'Bamako', niveau: 'Bac+2' },
+      { name: 'Orange Sénégal', email: 'entreprise@stageia.com', password: hashedPassword, role: 'tuteur', avatar: 'OS', phone: '+221 77 000 00 04', ville: 'Dakar' },
     ];
     const savedUsers = await this.userRepo.save(usersData);
+
+    // Création de l'entreprise "Orange Sénégal" et liaison avec le compte tuteur
+    const orangeEntreprise = await this.entrepriseRepo.save({
+      nom: 'Orange Sénégal',
+      email: 'entreprise@stageia.com',
+      contact: '+221 77 000 00 04',
+      secteur: 'Télécommunications',
+      actif: true,
+    });
+    const tuteurUser = savedUsers.find((u) => u.email === 'entreprise@stageia.com');
+    if (tuteurUser) {
+      tuteurUser.entrepriseId = orangeEntreprise.id;
+      await this.userRepo.save(tuteurUser);
+    }
 
     // Mapping des IDs
     const userIds: Record<string, string> = {

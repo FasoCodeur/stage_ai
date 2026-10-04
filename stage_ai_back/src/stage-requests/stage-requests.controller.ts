@@ -48,8 +48,8 @@ export class StageRequestsController {
 
   @Delete(':id')
   @ApiOperation({ summary: 'Supprimer une demande de stage' })
-  remove(@Param('id') id: string) {
-    this.stageRequestsService.remove(id);
+  async remove(@Param('id') id: string) {
+    await this.stageRequestsService.remove(id);
     return { message: 'Demande de stage supprimée' };
   }
 }

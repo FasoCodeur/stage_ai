@@ -5,13 +5,16 @@ import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { useProgramStore } from "@/lib/stores/program-store"
 import { useUserStore } from "@/lib/stores/user-store"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { buttonVariants } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft, Save, Eye, EyeOff, Loader2 } from "lucide-react"
+import { Switch } from "@/components/ui/switch"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { ImageUpload } from "@/components/image-upload"
+import { ArrowLeft, Save, Loader2, AlertCircle } from "lucide-react"
 import Link from "next/link"
 
 export default function AdminModifierProgrammePage({ params }: { params: Promise<{ id: string }> }) {
@@ -33,6 +36,7 @@ export default function AdminModifierProgrammePage({ params }: { params: Promise
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [error, setError] = useState("")
 
   useEffect(() => {
     const load = async () => {
@@ -81,19 +85,25 @@ export default function AdminModifierProgrammePage({ params }: { params: Promise
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
-    await updateProgramApi(id, {
-      title,
-      description,
-      thumbnail,
-      duration,
-      subscriptionPrice,
-      mentorId,
-      published,
-      startDate,
-      endDate,
-    })
-    setSaving(false)
-    router.push(`/admin/programmes/${id}`)
+    setError("")
+
+    try {
+      await updateProgramApi(id, {
+        title: title.trim(),
+        description: description.trim(),
+        thumbnail: thumbnail || null,
+        duration,
+        subscriptionPrice,
+        mentorId,
+        published,
+        startDate,
+        endDate,
+      })
+      router.push(`/admin/programmes/${id}`)
+    } catch (err: any) {
+      setError(err.message || "Une erreur est survenue lors de la modification du programme.")
+      setSaving(false)
+    }
   }
 
   return (
@@ -109,24 +119,23 @@ export default function AdminModifierProgrammePage({ params }: { params: Promise
       <Card>
         <CardHeader>
           <CardTitle>Modifier le programme</CardTitle>
+          <CardDescription>
+            Mettez à jour les informations générales du programme.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div>
-              <Label htmlFor="thumbnail">Image / Icône du programme</Label>
-              <div className="flex items-center gap-3 mt-1.5">
-                <div className="size-12 rounded-lg bg-primary/5 border flex items-center justify-center text-2xl shrink-0">
-                  {thumbnail || "?"}
-                </div>
-                <Input
-                  id="thumbnail"
-                  value={thumbnail}
-                  onChange={(e) => setThumbnail(e.target.value)}
-                  placeholder="Titre court, symbole ou URL d'image"
-                  className="flex-1"
-                />
-              </div>
-            </div>
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="size-4" />
+                <AlertTitle>Impossible de modifier le programme</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            <ImageUpload
+              value={thumbnail || null}
+              onChange={(value) => setThumbnail(value ?? "")}
+            />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
@@ -169,17 +178,14 @@ export default function AdminModifierProgrammePage({ params }: { params: Promise
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setPublished(!published)}
-                className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                  published ? "border-green-300 bg-green-50 text-green-700" : "border-border text-muted-foreground"
-                }`}
-              >
-                {published ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
-                {published ? "Publié" : "Brouillon"}
-              </button>
+            <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-4 py-3">
+              <div className="flex flex-col gap-0.5">
+                <Label htmlFor="published">Publier le programme</Label>
+                <p className="text-xs text-muted-foreground">
+                  Rendre le programme visible par les étudiants immédiatement.
+                </p>
+              </div>
+              <Switch id="published" checked={published} onCheckedChange={(v) => setPublished(Boolean(v))} />
             </div>
 
             <div className="flex gap-3 pt-2">

@@ -3,7 +3,7 @@
 import { use, useState, useEffect } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { Lesson, QuizQuestion, ContentBlock, Course } from "@/lib/mock-data"
-import { API_URL } from "@/lib/api"
+import { API_URL, NETWORK_ERROR_MESSAGE, extractErrorMessage, getFriendlyErrorMessage } from "@/lib/api"
 import { useCourseStore } from "@/lib/stores/course-store"
 import { useEnrollmentStore } from "@/lib/stores/enrollment-store"
 import { usePurchaseStore } from "@/lib/stores/purchase-store"
@@ -205,22 +205,27 @@ function SandboxPlayer({ code, language = "html" }: { code: string; language?: s
     setError("")
 
     try {
-      const res = await fetch(`${API_URL}/sandbox/execute`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ language, code: userCode }),
-      })
+      let res: Response
+      try {
+        res = await fetch(`${API_URL}/sandbox/execute`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ language, code: userCode }),
+        })
+      } catch {
+        throw new Error(NETWORK_ERROR_MESSAGE)
+      }
 
       if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.message || "Erreur d'exécution")
+        const payload = await res.json().catch(() => null)
+        throw new Error(extractErrorMessage(payload, res.status))
       }
 
       const result = await res.json()
       setOutput(result.output || "")
       if (result.stderr) setError(result.stderr)
     } catch (err: any) {
-      setError(err.message || "Erreur d'exécution")
+      setError(getFriendlyErrorMessage(err, "L'exécution du code a échoué. Veuillez réessayer."))
     } finally {
       setRunning(false)
     }

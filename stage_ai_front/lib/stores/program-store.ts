@@ -1,5 +1,5 @@
 import { create } from "zustand"
-import { type Program, type ProgramEnrollment, type Level } from "@/lib/mock-data"
+import { type Program, type ProgramEnrollment, type Level, type CreateProgramPayload, type ProgramStepInput } from "@/lib/mock-data"
 import { apiFetch } from "@/lib/api"
 
 // N'extrait que les champs acceptés par le DTO backend (evite les erreurs "should not exist")
@@ -47,8 +47,9 @@ interface ProgramState {
   enrollStudentApi: (programId: string, userId: string) => Promise<ProgramEnrollment>
   completeCourseApi: (programId: string, userId: string, courseId: string) => Promise<ProgramEnrollment>
   updateMentorNotesApi: (programId: string, userId: string, mentorNotes: string) => Promise<ProgramEnrollment>
-  createProgramApi: (program: Partial<Program>) => Promise<Program>
+  createProgramApi: (program: CreateProgramPayload) => Promise<Program>
   updateProgramApi: (id: string, program: Partial<Program>) => Promise<Program>
+  updateProgramStepsApi: (programId: string, steps: ProgramStepInput[]) => Promise<Level[]>
   deleteProgramApi: (id: string) => Promise<void>
   createLevelApi: (programId: string, data: Partial<Level>) => Promise<Level>
   updateLevelApi: (levelId: string, data: Partial<Level>) => Promise<Level>
@@ -223,6 +224,17 @@ export const useProgramStore = create<ProgramState>()((set, get) => ({
       body: JSON.stringify(sanitizeProgram(program)),
     })
     set((state) => ({ programs: [...state.programs, data] }))
+    return data
+  },
+
+  updateProgramStepsApi: async (programId, steps) => {
+    const data = await apiFetch<Level[]>(`/programs/${programId}/steps`, {
+      method: "PUT",
+      body: JSON.stringify({ steps }),
+    })
+    set((state) => ({
+      levels: [...state.levels.filter((l) => l.programId !== programId), ...data],
+    }))
     return data
   },
 

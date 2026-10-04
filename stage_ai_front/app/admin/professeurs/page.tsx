@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { useUserStore } from "@/lib/stores/user-store"
 import { useCourseStore } from "@/lib/stores/course-store"
-import type { User } from "@/lib/mock-data"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -41,6 +40,8 @@ import {
   BookOpen,
   CheckSquare,
   Square,
+  Loader2,
+  AlertCircle,
 } from "lucide-react"
 
 function generateAvatar(name: string) {
@@ -49,16 +50,13 @@ function generateAvatar(name: string) {
   return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
 }
 
-function generateId() {
-  return `u${Date.now().toString(36).slice(-4)}${Math.random().toString(36).slice(2, 5)}`
-}
-
 const niveaux = ["Bac", "Bac+1", "Bac+2", "Bac+3", "Bac+4", "Bac+5", "Doctorat"]
 
 export default function AdminProfesseursPage() {
   const { user: currentUser } = useAuth()
   const users = useUserStore((state) => state.users)
-  const addUser = useUserStore((state) => state.addUser)
+  const fetchUsers = useUserStore((state) => state.fetchUsers)
+  const createUser = useUserStore((state) => state.createUser)
   const deleteUser = useUserStore((state) => state.deleteUser)
   const suspendUser = useUserStore((state) => state.suspendUser)
   const reactivateUser = useUserStore((state) => state.reactivateUser)
@@ -67,10 +65,13 @@ export default function AdminProfesseursPage() {
   const fetchCourses = useCourseStore((state) => state.fetchCourses)
   const [search, setSearch] = useState("")
   const [open, setOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null)
 
   useEffect(() => {
     fetchCourses()
-  }, [fetchCourses])
+    fetchUsers().catch(() => {})
+  }, [fetchCourses, fetchUsers])
 
   // Transfer modal state
   const [transferOpen, setTransferOpen] = useState(false)
@@ -103,26 +104,39 @@ export default function AdminProfesseursPage() {
     )
   }, [professors, search])
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!form.name || !form.email || !form.password) return
+    if (!form.name || !form.email) return
 
-    const newProfessor: User = {
-      id: generateId(),
-      name: form.name.trim(),
-      email: form.email.trim(),
-      password: form.password,
-      role: "professeur",
-      avatar: generateAvatar(form.name),
-      phone: form.phone.trim() || undefined,
-      ville: form.ville.trim() || undefined,
-      niveau: form.niveau.trim() || undefined,
-      suspended: false,
+    const passwordProvided = form.password.trim().length >= 6
+
+    setSaving(true)
+    setFeedback(null)
+    try {
+      await createUser({
+        name: form.name.trim(),
+        email: form.email.trim(),
+        role: "professeur",
+        avatar: generateAvatar(form.name),
+        phone: form.phone.trim() || undefined,
+        ville: form.ville.trim() || undefined,
+        niveau: form.niveau.trim() || undefined,
+        ...(passwordProvided ? { password: form.password.trim() } : {}),
+      })
+
+      setFeedback({
+        type: "success",
+        message: passwordProvided
+          ? `Compte professeur créé pour ${form.email.trim()}.`
+          : `Compte créé ! Un email contenant le mot de passe par défaut a été envoyé à ${form.email.trim()}. Le professeur pourra le changer à tout moment.`,
+      })
+      setForm({ name: "", email: "", phone: "", ville: "", niveau: "", password: "" })
+      setOpen(false)
+    } catch (err: any) {
+      setFeedback({ type: "error", message: err.message || "Erreur lors de la création du compte professeur." })
+    } finally {
+      setSaving(false)
     }
-
-    addUser(newProfessor, currentUser ?? undefined)
-    setForm({ name: "", email: "", phone: "", ville: "", niveau: "", password: "" })
-    setOpen(false)
   }
 
   const handleDelete = (id: string) => {
@@ -204,11 +218,9 @@ export default function AdminProfesseursPage() {
             />
           </div>
           <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger>
-              <Button>
-                <Plus className="size-4" />
-                Ajouter
-              </Button>
+            <DialogTrigger render={<Button />}>
+              <Plus className="size-4" />
+              Ajouter
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
@@ -227,8 +239,11 @@ export default function AdminProfesseursPage() {
                   <Input id="email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="prof@stageia.com" required />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="password">Mot de passe</Label>
-                  <Input id="password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="••••••••" minLength={6} required />
+                  <Label htmlFor="password">Mot de passe (optionnel)</Label>
+                  <Input id="password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Laisser vide → mot de passe par défaut envoyé par email" minLength={6} />
+                  <p className="text-xs text-muted-foreground">
+                    Si laissé vide, un mot de passe par défaut est généré et envoyé au professeur par email.
+                  </p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
@@ -249,13 +264,33 @@ export default function AdminProfesseursPage() {
                 </div>
               </form>
               <DialogFooter>
-                <Button variant="outline" type="button" onClick={() => setOpen(false)}>Annuler</Button>
-                <Button type="submit" form="add-professor-form">Enregistrer</Button>
+                <Button variant="outline" type="button" onClick={() => setOpen(false)} disabled={saving}>Annuler</Button>
+                <Button type="submit" form="add-professor-form" disabled={saving}>
+                  {saving ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+                  {saving ? "Création..." : "Enregistrer"}
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
       </div>
+
+      {feedback && (
+        <div
+          className={`flex items-start gap-2 rounded-lg border px-4 py-2.5 text-sm ${
+            feedback.type === "success"
+              ? "border-green-300 bg-green-50 text-green-700"
+              : "border-destructive/30 bg-destructive/5 text-destructive"
+          }`}
+        >
+          {feedback.type === "success" ? (
+            <CheckCircle className="size-4 shrink-0 mt-0.5" />
+          ) : (
+            <AlertCircle className="size-4 shrink-0 mt-0.5" />
+          )}
+          <span>{feedback.message}</span>
+        </div>
+      )}
 
       <Card>
         <CardContent className="p-0">

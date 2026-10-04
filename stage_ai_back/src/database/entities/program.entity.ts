@@ -11,8 +11,8 @@ export class ProgramEntity {
   @Column({ type: 'text' })
   description: string;
 
-  @Column()
-  thumbnail: string;
+  @Column({ type: 'text', nullable: true })
+  thumbnail: string | null;
 
   @Column()
   duration: number; // en mois
