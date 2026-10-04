@@ -11,9 +11,19 @@ async function bootstrap() {
   // Fichiers téléversés (logos de programmes, miniatures de cours…) servis sur /uploads/...
   app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads/' });
 
-  // CORS pour le frontend Next.js
+  // CORS pour le frontend Next.js : origines de développement + URLs déployées.
+  // FRONTEND_URL accepte plusieurs URLs séparées par des virgules (ex. prod + preview).
+  const allowedOrigins = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:3001',
+    'http://127.0.0.1:3001',
+    ...(process.env.FRONTEND_URL
+      ? process.env.FRONTEND_URL.split(',').map((origin) => origin.trim()).filter(Boolean)
+      : []),
+  ];
   app.enableCors({
-    origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3001', 'http://127.0.0.1:3001'],
+    origin: allowedOrigins,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });

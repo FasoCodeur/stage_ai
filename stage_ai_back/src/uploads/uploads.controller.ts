@@ -8,7 +8,8 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBody, ApiConsumes, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { diskStorage } from 'multer';
+import { put } from '@vercel/blob';
+import { diskStorage, memoryStorage } from 'multer';
 import { randomUUID } from 'crypto';
 import { existsSync, mkdirSync } from 'fs';
 import { extname } from 'path';
@@ -18,12 +19,29 @@ import { UPLOADS_DIR } from './uploads.constants';
 /** Types d'images acceptés (SVG exclu : risque d'injection de script). */
 const ALLOWED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif'];
 
-/** Taille maximale d'un fichier : 5 Mo. */
-const MAX_FILE_SIZE = 5 * 1024 * 1024;
+/**
+ * Taille maximale d'un fichier : 4 Mo.
+ * (Les fonctions Vercel limitent le corps de requête à 4,5 Mo, en-têtes multipart compris.)
+ */
+const MAX_FILE_SIZE = 4 * 1024 * 1024;
 
-// Le dossier doit exister avant le démarrage de multer
-if (!existsSync(UPLOADS_DIR)) {
-  mkdirSync(UPLOADS_DIR, { recursive: true });
+/**
+ * En production (Vercel), les images sont stockées sur Vercel Blob dès que le token est fourni.
+ * En local sans token, elles sont écrites dans le dossier "uploads" servi par l'API.
+ */
+const USE_BLOB_STORAGE = Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+
+// En mode stockage disque, le dossier doit exister avant le démarrage de multer.
+// Sur un système de fichiers en lecture seule (ex. Vercel), l'erreur est ignorée :
+// l'upload renverra alors un message explicite à l'appel.
+if (!USE_BLOB_STORAGE) {
+  try {
+    if (!existsSync(UPLOADS_DIR)) {
+      mkdirSync(UPLOADS_DIR, { recursive: true });
+    }
+  } catch {
+    // Système de fichiers en lecture seule : le dossier ne peut pas être créé.
+  }
 }
 
 @ApiTags('Uploads')
@@ -33,14 +51,14 @@ export class UploadsController {
   @ApiOperation({
     summary: 'Téléverser une image',
     description:
-      'Enregistre une image (logo de programme, miniature de cours…) dans le dossier "uploads" du backend et renvoie son URL.',
+      "Enregistre une image (logo de programme, miniature de cours…) et renvoie son URL. Stockage Vercel Blob en production, dossier local \"uploads\" en développement.",
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
       type: 'object',
       properties: {
-        file: { type: 'string', format: 'binary', description: 'Image (5 Mo maximum)' },
+        file: { type: 'string', format: 'binary', description: 'Image (4 Mo maximum)' },
       },
     },
   })
@@ -55,13 +73,15 @@ export class UploadsController {
   @UseFilters(MulterExceptionFilter)
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: diskStorage({
-        destination: UPLOADS_DIR,
-        filename: (_req, file, callback) => {
-          const extension = extname(file.originalname).toLowerCase();
-          callback(null, `${randomUUID()}${extension}`);
-        },
-      }),
+      storage: USE_BLOB_STORAGE
+        ? memoryStorage()
+        : diskStorage({
+            destination: UPLOADS_DIR,
+            filename: (_req, file, callback) => {
+              const extension = extname(file.originalname).toLowerCase();
+              callback(null, `${randomUUID()}${extension}`);
+            },
+          }),
       limits: { fileSize: MAX_FILE_SIZE },
       fileFilter: (_req, file, callback) => {
         if (!ALLOWED_MIME_TYPES.includes(file.mimetype.toLowerCase())) {
@@ -76,13 +96,30 @@ export class UploadsController {
       },
     }),
   )
-  upload(@UploadedFile() file?: Express.Multer.File) {
+  async upload(@UploadedFile() file?: Express.Multer.File) {
     if (!file) {
       throw new BadRequestException(
         'Aucun fichier reçu. Sélectionnez une image puis réessayez.',
       );
     }
 
+    // Production : stockage objet Vercel Blob → URL absolue et persistante.
+    if (USE_BLOB_STORAGE && file.buffer) {
+      const extension = extname(file.originalname).toLowerCase();
+      const filename = `${randomUUID()}${extension}`;
+      const blob = await put(`uploads/${filename}`, file.buffer, {
+        access: 'public',
+        contentType: file.mimetype,
+      });
+      return { url: blob.url, filename };
+    }
+
+    // Développement : fichier écrit sur disque et servi sur /uploads/...
+    if (!file.filename) {
+      throw new BadRequestException(
+        "Le stockage des images n'est pas configuré sur ce serveur.",
+      );
+    }
     return {
       url: `/uploads/${file.filename}`,
       filename: file.filename,
